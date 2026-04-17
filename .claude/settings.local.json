@@ -4,7 +4,12 @@
       "Bash(npm --version)",
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx vite *)",
+      "Skill(schedule)",
+      "Skill(schedule:*)",
+      "Bash(node -e \"const d = new Date\\(Date.now\\(\\) + 30*60*1000\\); const pad = n => String\\(n\\).padStart\\(2,'0'\\); const off = -d.getTimezoneOffset\\(\\); const oh = pad\\(Math.floor\\(Math.abs\\(off\\)/60\\)\\); const om = pad\\(Math.abs\\(off\\)%60\\); const sign = off >= 0 ? '+' : '-'; console.log\\(d.getFullYear\\(\\)+'-'+pad\\(d.getMonth\\(\\)+1\\)+'-'+pad\\(d.getDate\\(\\)\\)+'T'+pad\\(d.getHours\\(\\)\\)+':'+pad\\(d.getMinutes\\(\\)\\)+':'+pad\\(d.getSeconds\\(\\)\\)+sign+oh+':'+om\\);\")",
+      "mcp__scheduled-tasks__create_scheduled_task"
     ]
   }
 }
