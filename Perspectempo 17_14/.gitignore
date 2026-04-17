@@ -1,9 +1,0 @@
-node_modules
-dist
-.env
-.env.local
-.DS_Store
-coverage
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
