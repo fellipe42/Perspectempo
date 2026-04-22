@@ -60,7 +60,7 @@ export function ActionSearch({ categories, onStart }: Props) {
       <input
         ref={inputRef}
         type="text"
-        placeholder="o que você está fazendo? (ex: netflix, correndo, meditação…)"
+        placeholder="o que você está fazendo? (ex: instagram, transporte, comendo...)"
         value={query}
         onChange={e => setQuery(e.target.value)}
         onKeyDown={e => e.key === 'Escape' && close()}
