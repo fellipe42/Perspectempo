@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AppState, DailyPlan, DefaultPlan, Session, UserProfile } from '../domain/types';
+import { AppState, Category, DailyPlan, DefaultPlan, Session, UserProfile, countsTowardAllocated, isCap } from '../domain/types';
 import { repository } from '../data/repository';
 import { todayISO } from '../domain/time';
 import { DEFAULT_ALLOCATION_MIN, DEFAULT_AWAKE_MINUTES } from '../domain/defaults';
@@ -22,6 +22,7 @@ interface StoreActions {
   ensureTodayPlan: () => void;
   setAwakeMinutes: (min: number) => void;
   setAllocation: (categoryId: string, minutes: number) => void;
+  allocateSlack: () => void;
   saveAsDefaultPlan: () => void;
   applyDefaultPlan: () => void;
 
@@ -224,9 +225,83 @@ export const useStore = create<Store>((set, get) => {
       const state = get();
       const current = state.plans[date];
       if (!current) return;
+      const newAwake = Math.max(60, min);
+      const autoRebalance = state.profile?.autoRebalanceEnabled !== false; // default true
+
+      let allocations = { ...current.allocations };
+
+      if (autoRebalance) {
+        // Calcula o total alocado em categorias que contam para o orçamento
+        const totalAllocated = Object.entries(allocations).reduce((sum, [id, m]) => {
+          const cat = state.categories.find(c => c.id === id);
+          return cat && countsTowardAllocated(cat) ? sum + m : sum;
+        }, 0);
+
+        const overflow = totalAllocated - newAwake;
+        if (overflow > 0) {
+          // Remanejar: reduzir categorias por prioridade (menor prioridade = mais alta numericamente = cede primeiro)
+          // Só categorias que podem ceder: target e flexible, não protected, não cap
+          const donors = state.categories
+            .filter(c => countsTowardAllocated(c) && !isCap(c) && c.budgetType !== 'protected')
+            .sort((a, b) => {
+              if (b.priority !== a.priority) return b.priority - a.priority; // menor prioridade primeiro
+              if (a.budgetType === 'flexible' && b.budgetType !== 'flexible') return -1;
+              if (b.budgetType === 'flexible' && a.budgetType !== 'flexible') return 1;
+              return (allocations[b.id] ?? 0) - (allocations[a.id] ?? 0); // mais tempo primeiro
+            });
+
+          let remaining = overflow;
+          for (const cat of donors) {
+            if (remaining <= 0) break;
+            const cur = allocations[cat.id] ?? 0;
+            const reduce = Math.min(cur, remaining);
+            allocations[cat.id] = cur - reduce;
+            remaining -= reduce;
+          }
+        }
+      }
+
       persist({
-        plans: { ...state.plans, [date]: { ...current, awakeMinutes: Math.max(0, min) } },
+        plans: { ...state.plans, [date]: { ...current, awakeMinutes: newAwake, allocations } },
       });
+    },
+
+    // Distribui o tempo livre (slack) proporcionalmente entre categorias target/flexible.
+    allocateSlack: () => {
+      const date = todayISO();
+      const state = get();
+      const current = state.plans[date];
+      if (!current) return;
+
+      const allocations = { ...current.allocations };
+      const totalAllocated = Object.entries(allocations).reduce((sum, [id, m]) => {
+        const cat = state.categories.find(c => c.id === id);
+        return cat && countsTowardAllocated(cat) ? sum + m : sum;
+      }, 0);
+      const slack = current.awakeMinutes - totalAllocated;
+      if (slack <= 0) return;
+
+      // Distribui proporcionalmente entre target (não protected, não cap)
+      const recipients = state.categories.filter(
+        c => countsTowardAllocated(c) && !isCap(c) && c.budgetType !== 'protected',
+      );
+      if (recipients.length === 0) return;
+
+      const totalCurrent = recipients.reduce((s, c) => s + (allocations[c.id] ?? 0), 0);
+      let distributed = 0;
+      for (let i = 0; i < recipients.length; i++) {
+        const cat = recipients[i];
+        const cur = allocations[cat.id] ?? 0;
+        const share = i === recipients.length - 1
+          ? slack - distributed
+          : totalCurrent > 0
+            ? Math.round((cur / totalCurrent) * slack)
+            : Math.round(slack / recipients.length);
+        allocations[cat.id] = cur + share;
+        distributed += share;
+      }
+
+      persist({ plans: { ...state.plans, [date]: { ...current, allocations } } });
     },
 
     setAllocation: (categoryId, minutes) => {

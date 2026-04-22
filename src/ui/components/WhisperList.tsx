@@ -39,7 +39,7 @@ export function WhisperList({ habits, statuses, categories }: Props) {
     <section>
       <div className="flex items-baseline justify-between mb-3">
         <div className="text-[10px] uppercase tracking-[0.3em] text-ink-400">
-          sussurros do dia
+          intenções do dia
         </div>
         {done.length > 0 && (
           <div className="text-[10px] text-ink-500 tabular-nums">

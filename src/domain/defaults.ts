@@ -7,7 +7,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
     name: 'Trabalho',
     color: '#5b8def',
     macrobox: 'construcao',
-    enjoyment: 0, future: 2, priority: 1,
+    enjoyment: 0, future: 2, priority: 2,
     budgetType: 'target',
     aliases: [
       'trabalhando', 'reunião', 'meeting', 'email', 'cliente', 'projeto',

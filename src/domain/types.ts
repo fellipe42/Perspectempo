@@ -62,6 +62,8 @@ export interface UserProfile {
   sleepStartHour: number;   // hora típica de dormir, 0-23 (e.g. 23)
   sleepEndHour: number;     // hora típica de acordar, 0-23 (e.g. 7)
   onboardingDone: boolean;
+  autoRebalanceEnabled?: boolean; // remaneja alocações automaticamente ao mudar horas acordado (default: true)
+  tutorialSeen?: boolean;         // tutorial inicial já foi exibido
 }
 
 /** Plano padrão reutilizável — copiado para novos dias quando disponível. */

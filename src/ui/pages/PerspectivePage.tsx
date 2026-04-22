@@ -70,18 +70,59 @@ export function PerspectivePage() {
 
 function SparseIntro({ daysWithData }: { daysWithData: number }) {
   return (
-    <section>
-      <div className="text-[11px] uppercase tracking-[0.3em] text-ink-400 mb-3">perspectiva</div>
-      <h2 className="font-serif text-3xl md:text-4xl leading-tight text-ink-100 max-w-2xl">
-        {daysWithData === 0
-          ? 'Ainda não há semana — mas há vida.'
-          : 'Um dia já é um começo.'}
-      </h2>
-      <p className="mt-4 text-ink-400 text-sm max-w-xl leading-relaxed">
-        Os números chegam com o uso. Por enquanto, a tela mais sincera é a de baixo:
-        as semanas que você já viveu e as que ainda restam.
-      </p>
+    <section className="space-y-10">
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.3em] text-ink-400 mb-3">perspectiva</div>
+        <h2 className="font-serif text-3xl md:text-4xl leading-tight text-ink-100 max-w-2xl">
+          {daysWithData === 0
+            ? 'Ainda não há semana — mas há vida.'
+            : 'Um dia já é um começo.'}
+        </h2>
+        <p className="mt-4 text-ink-400 text-sm max-w-xl leading-relaxed">
+          Os gráficos e projeções aparecem com o uso. Com alguns dias de registro,
+          esta aba vira um espelho da sua semana.
+        </p>
+      </div>
+
+      {/* Mini tutorial visual */}
+      <div className="rounded-2xl bg-ink-800/40 border border-ink-700/60 p-5 max-w-xl">
+        <div className="text-[10px] uppercase tracking-[0.25em] text-ink-400 mb-4">
+          o que você vai ver aqui
+        </div>
+        <div className="space-y-4">
+          <PreviewItem
+            icon="▦"
+            title="Composição dos dias"
+            description="Colunas coloridas que mostram como você distribuiu o tempo por atividade em cada dia da semana."
+          />
+          <PreviewItem
+            icon="→"
+            title="Projeção de ritmo"
+            description="Se você manter este ritmo, em 6 meses terá dedicado X horas a Estudo, Y horas a Trabalho…"
+          />
+          <PreviewItem
+            icon="◻"
+            title="Sua vida em semanas"
+            description="Uma grade com todas as semanas de uma vida de 90 anos. As vividas, a atual, as que ainda restam."
+          />
+        </div>
+        <p className="mt-5 text-[12px] text-ink-500 italic">
+          Registre alguns dias na aba <span className="text-ink-300">Hoje</span> e volte aqui para ver a perspectiva ganhar forma.
+        </p>
+      </div>
     </section>
+  );
+}
+
+function PreviewItem({ icon, title, description }: { icon: string; title: string; description: string }) {
+  return (
+    <div className="flex gap-3">
+      <span className="text-ink-500 text-lg leading-none mt-0.5 flex-shrink-0">{icon}</span>
+      <div>
+        <div className="text-sm text-ink-200 font-medium">{title}</div>
+        <div className="text-[12px] text-ink-400 mt-0.5 leading-relaxed">{description}</div>
+      </div>
+    </div>
   );
 }
 

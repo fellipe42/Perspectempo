@@ -39,8 +39,9 @@ export function TodayPage() {
     startActivity, switchActivity, stopActivity,
     shiftLastSessionStart, shiftLastSessionEnd,
     reassignLastSession, splitLastSession, addRetroSession,
-    setAwakeMinutes, setAllocation,
+    setAwakeMinutes, setAllocation, allocateSlack,
     saveAsDefaultPlan, applyDefaultPlan,
+    setProfile,
   } = useStore();
 
   const [mapOpen, setMapOpen] = useState(false);
@@ -181,6 +182,25 @@ export function TodayPage() {
 
       {/* ───────────── 4. SALDO ───────────── */}
       <div className="rounded-2xl bg-ink-800/40 border border-ink-700/70 px-5 py-4">
+        {/* Tutorial de primeiro uso — some depois de visto */}
+        {!profile?.tutorialSeen && !showPlan && (
+          <div className="mb-4 rounded-xl bg-ink-700/60 border border-ink-600/50 px-4 py-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-ink-200 font-medium">Personalize seu plano</p>
+              <p className="text-[12px] text-ink-400 mt-0.5">
+                Toque em <span className="text-ink-200 font-medium">Editar plano</span> abaixo para ajustar quanto tempo quer em cada atividade hoje.
+              </p>
+            </div>
+            <button
+              onClick={() => setProfile({ tutorialSeen: true })}
+              className="text-ink-500 hover:text-ink-300 text-lg leading-none flex-shrink-0 mt-0.5"
+              aria-label="Fechar dica"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <MacroboxRows
           categories={categories}
           balances={balances}
@@ -194,17 +214,24 @@ export function TodayPage() {
           >
             {showDetail ? '− esconder categorias' : '+ ver por categoria'}
           </button>
-          <div className="flex items-center gap-3 text-[11px]">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowPlan(s => !s)}
-              className="text-ink-400 hover:text-ink-200 transition min-h-[36px] px-1"
+              onClick={() => {
+                setShowPlan(s => !s);
+                if (!profile?.tutorialSeen) setProfile({ tutorialSeen: true });
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition min-h-[36px] ${
+                showPlan
+                  ? 'bg-ink-700 text-ink-300'
+                  : 'bg-ink-600 hover:bg-ink-500 text-ink-100'
+              }`}
             >
-              {showPlan ? 'fechar plano' : 'editar plano'}
+              <span>{showPlan ? '✕' : '✎'}</span>
+              <span>{showPlan ? 'fechar plano' : 'Editar plano'}</span>
             </button>
-            <span className="text-ink-700">·</span>
             <button
               onClick={() => setMapOpen(true)}
-              className="text-gold hover:brightness-110 transition min-h-[36px] px-1"
+              className="text-[12px] text-gold hover:brightness-110 transition min-h-[36px] px-2"
             >
               mapa do dia ↗
             </button>
@@ -217,10 +244,15 @@ export function TodayPage() {
               categories={categories}
               plan={plan}
               hasDefault={!!defaultPlan}
+              autoRebalanceEnabled={profile?.autoRebalanceEnabled !== false}
               onSetAwake={setAwakeMinutes}
               onSetAllocation={setAllocation}
+              onAllocateSlack={allocateSlack}
               onSaveAsDefault={saveAsDefaultPlan}
               onApplyDefault={applyDefaultPlan}
+              onToggleAutoRebalance={() =>
+                setProfile({ autoRebalanceEnabled: profile?.autoRebalanceEnabled === false })
+              }
             />
           </div>
         )}
