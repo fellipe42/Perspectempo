@@ -356,11 +356,17 @@ function humanEquivalence(minutes: number): string {
 // LifeWeeks — a última coisa que você vê. Contemplativa.
 // ===================================================================
 function LifeWeeks() {
+  const profile = useStore(s => s.profile);
   const totalWeeks = 90 * 52;
-  // Base de cálculo: semanas vividas a partir de 2000-01-01.
-  // Para a visão real, bastaria trocar por uma data de nascimento configurável no futuro.
+
+  // Usa a data de nascimento do perfil se disponível.
+  // Fallback: 2000-01-01 (usuário sem onboarding).
+  const birthMs = profile?.birthDate
+    ? new Date(profile.birthDate).getTime()
+    : new Date(2000, 0, 1).getTime();
+
   const livedWeeks = Math.floor(
-    (Date.now() - new Date(2000, 0, 1).getTime()) / (1000 * 60 * 60 * 24 * 7),
+    (Date.now() - birthMs) / (1000 * 60 * 60 * 24 * 7),
   );
   const remainingWeeks = Math.max(0, totalWeeks - livedWeeks);
 

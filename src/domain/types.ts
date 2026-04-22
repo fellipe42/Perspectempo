@@ -31,6 +31,7 @@ export interface Category {
   future: number;      // -2 .. +2
   priority: number;    // 1 = mais prioritária ... 5 = menos prioritária
   budgetType: BudgetType;
+  aliases?: string[];  // termos alternativos para busca (nomes populares, verbos, apps)
   /**
    * @deprecated use budgetType === 'protected'. Mantido para retrocompat.
    */
@@ -53,6 +54,20 @@ export function canReceive(c: Category): boolean {
 }
 export function isCap(c: Category): boolean {
   return c.budgetType === 'cap';
+}
+
+/** Perfil do usuário — usado para Life Weeks e heurística de sono. */
+export interface UserProfile {
+  birthDate?: string;       // YYYY-MM-DD
+  sleepStartHour: number;   // hora típica de dormir, 0-23 (e.g. 23)
+  sleepEndHour: number;     // hora típica de acordar, 0-23 (e.g. 7)
+  onboardingDone: boolean;
+}
+
+/** Plano padrão reutilizável — copiado para novos dias quando disponível. */
+export interface DefaultPlan {
+  awakeMinutes: number;
+  allocations: Record<string /*categoryId*/, number /*minutes*/>;
 }
 
 export interface DailyPlan {
@@ -116,4 +131,6 @@ export interface AppState {
   plans: Record<string /*date*/, DailyPlan>;
   sessions: Session[];
   activeSessionId: string | null;
+  profile?: UserProfile;
+  defaultPlan?: DefaultPlan;
 }

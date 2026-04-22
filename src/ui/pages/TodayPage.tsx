@@ -21,6 +21,8 @@ import { DayRibbon } from '../components/DayRibbon';
 import { MacroboxRows } from '../components/MacroboxRows';
 import { WhisperList } from '../components/WhisperList';
 import { AdjustLastSheet } from '../components/AdjustLastSheet';
+import { SanityBanner } from '../components/SanityBanner';
+import { ActionSearch } from '../components/ActionSearch';
 
 function useTickEveryMs(ms: number) {
   const [tick, setTick] = useState(0);
@@ -33,10 +35,12 @@ function useTickEveryMs(ms: number) {
 
 export function TodayPage() {
   const {
-    categories, habits, plans, sessions, activeSessionId,
+    categories, habits, plans, sessions, activeSessionId, profile, defaultPlan,
     startActivity, switchActivity, stopActivity,
-    shiftActiveStart, reassignLastSession, splitLastSession,
+    shiftLastSessionStart, shiftLastSessionEnd,
+    reassignLastSession, splitLastSession, addRetroSession,
     setAwakeMinutes, setAllocation,
+    saveAsDefaultPlan, applyDefaultPlan,
   } = useStore();
 
   const [mapOpen, setMapOpen] = useState(false);
@@ -61,8 +65,7 @@ export function TodayPage() {
     ? categories.find(c => c.id === lastSession.categoryId) ?? null
     : null;
 
-  // Atualização leve: sessão ativa → 10s (para o anel refletir o tempo),
-  // sem sessão ativa → 10min.
+  // Atualização leve: sessão ativa → 10s; sem sessão ativa → 10min.
   const tickKey = useTickEveryMs(activeSession ? 10_000 : 600_000);
 
   const spent = useMemo(
@@ -95,13 +98,16 @@ export function TodayPage() {
 
   if (!plan) return null;
 
-  // Dados da atividade ativa para o FocusBlock / FocusMode
   const activeSpent = activeCategory ? (spent[activeCategory.id] ?? 0) : 0;
   const activeGoal  = activeCategory ? (plan.allocations[activeCategory.id] ?? 0) : 0;
 
+  function handleStart(catId: string) {
+    activeSession ? switchActivity(catId) : startActivity(catId);
+  }
+
   return (
     <div className="space-y-6">
-      {/* ───────────── 1. NOW — a atividade atual, centro do momento ───────────── */}
+      {/* ───────────── 1. NOW — a atividade atual ───────────── */}
       <FocusBlock
         category={activeCategory}
         startedAt={activeSession?.startedAt ?? null}
@@ -112,7 +118,7 @@ export function TodayPage() {
         onEnterFocusMode={() => setFocusOpen(true)}
       />
 
-      {/* trocar atividade: faixa de chips discreta, logo abaixo do anel */}
+      {/* ───────────── 2. TROCAR ATIVIDADE ───────────── */}
       <div className="rounded-2xl bg-ink-800/40 border border-ink-700/70 px-4 py-3">
         <div className="flex items-center justify-between mb-2.5">
           <div className="text-[10px] uppercase tracking-[0.3em] text-ink-400">
@@ -127,6 +133,20 @@ export function TodayPage() {
             </button>
           )}
         </div>
+
+        {/* Sanity banner — aparece só quando necessário */}
+        {activeSession && (
+          <div className="mb-2.5">
+            <SanityBanner
+              activeSession={activeSession}
+              categories={categories}
+              profile={profile}
+              onSwitch={handleStart}
+              onStop={stopActivity}
+            />
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
           {orderedCats.map(c => (
             <CategoryChip
@@ -135,14 +155,22 @@ export function TodayPage() {
               active={activeSession?.categoryId === c.id}
               onClick={() => activeSession?.categoryId === c.id
                 ? stopActivity()
-                : (activeSession ? switchActivity(c.id) : startActivity(c.id))
+                : handleStart(c.id)
               }
             />
           ))}
         </div>
+
+        {/* Busca por sinônimos */}
+        <div className="mt-2">
+          <ActionSearch
+            categories={orderedCats}
+            onStart={handleStart}
+          />
+        </div>
       </div>
 
-      {/* ───────────── 2. DIA — régua cronológica por macrocaixa ───────────── */}
+      {/* ───────────── 3. DIA — régua cronológica ───────────── */}
       <div className="rounded-2xl bg-ink-800/40 border border-ink-700/70 px-5 py-4">
         <DayRibbon
           sessions={sessions}
@@ -151,7 +179,7 @@ export function TodayPage() {
         />
       </div>
 
-      {/* ───────────── 3. SALDO — leitura primária por macrocaixa ───────────── */}
+      {/* ───────────── 4. SALDO ───────────── */}
       <div className="rounded-2xl bg-ink-800/40 border border-ink-700/70 px-5 py-4">
         <MacroboxRows
           categories={categories}
@@ -159,7 +187,6 @@ export function TodayPage() {
           thefts={thefts}
         />
 
-        {/* detalhe por categoria: escondido por padrão, só quem quiser mergulha */}
         <div className="mt-4 pt-3 border-t border-ink-800/80 flex flex-wrap items-center justify-between gap-2">
           <button
             onClick={() => setShowDetail(s => !s)}
@@ -189,8 +216,11 @@ export function TodayPage() {
             <PlanEditor
               categories={categories}
               plan={plan}
+              hasDefault={!!defaultPlan}
               onSetAwake={setAwakeMinutes}
               onSetAllocation={setAllocation}
+              onSaveAsDefault={saveAsDefaultPlan}
+              onApplyDefault={applyDefaultPlan}
             />
           </div>
         )}
@@ -202,7 +232,7 @@ export function TodayPage() {
         )}
       </div>
 
-      {/* ───────────── 4. SUSSURROS + LEITURA ────────────────────────────────── */}
+      {/* ───────────── 5. SUSSURROS + LEITURA ───────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-3 rounded-2xl bg-ink-800/40 border border-ink-700/70 px-5 py-4">
           <WhisperList habits={habits} statuses={habitStatus} categories={categories} />
@@ -238,9 +268,11 @@ export function TodayPage() {
         lastSession={lastSession}
         lastCategory={lastCategory}
         categories={orderedCats}
-        shiftActiveStart={shiftActiveStart}
+        shiftLastSessionStart={shiftLastSessionStart}
+        shiftLastSessionEnd={shiftLastSessionEnd}
         reassignLastSession={reassignLastSession}
         splitLastSession={splitLastSession}
+        addRetroSession={addRetroSession}
       />
     </div>
   );

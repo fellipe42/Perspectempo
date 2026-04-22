@@ -58,6 +58,8 @@ export class Repository {
       plans: stored.plans ?? {},
       sessions: stored.sessions ?? [],
       activeSessionId: stored.activeSessionId ?? null,
+      profile: stored.profile,
+      defaultPlan: stored.defaultPlan,
     };
   }
 

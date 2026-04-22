@@ -2,17 +2,25 @@ import { useMemo } from 'react';
 import { Category, DailyPlan, countsTowardAllocated, isCap } from '../../domain/types';
 import { formatHM } from '../../domain/time';
 import { MACROBOX_LABEL } from '../../domain/defaults';
+import { MinuteInput } from './MinuteInput';
 
 interface Props {
   categories: Category[];
   plan: DailyPlan;
+  hasDefault: boolean;
   onSetAwake: (min: number) => void;
   onSetAllocation: (categoryId: string, min: number) => void;
+  onSaveAsDefault: () => void;
+  onApplyDefault: () => void;
 }
 
-export function PlanEditor({ categories, plan, onSetAwake, onSetAllocation }: Props) {
+export function PlanEditor({
+  categories, plan,
+  hasDefault,
+  onSetAwake, onSetAllocation,
+  onSaveAsDefault, onApplyDefault,
+}: Props) {
   // Total alocado: SOMA APENAS metas reais (target/protected/flexible).
-  // Caps são limites tolerados, não cabem no orçamento positivo do dia.
   const allocated = useMemo(() => {
     let sum = 0;
     for (const c of categories) {
@@ -25,7 +33,6 @@ export function PlanEditor({ categories, plan, onSetAwake, onSetAllocation }: Pr
   const overflow = allocated - plan.awakeMinutes;
   const slack    = Math.max(0, plan.awakeMinutes - allocated);
 
-  // Separa visualmente metas e caps.
   const targets = categories.filter(c => !isCap(c));
   const caps    = categories.filter(c =>  isCap(c));
 
@@ -47,18 +54,16 @@ export function PlanEditor({ categories, plan, onSetAwake, onSetAllocation }: Pr
         </div>
       </div>
 
+      {/* Horas acordado */}
       <div className="flex items-center gap-3 mb-4">
-        <label className="text-sm text-ink-300">Acordado:</label>
-        <input
-          type="number"
-          min={1}
-          max={20}
-          step={0.5}
-          value={(plan.awakeMinutes / 60).toString()}
-          onChange={e => onSetAwake(Math.round(parseFloat(e.target.value || '0') * 60))}
-          className="w-20 bg-ink-700 border border-ink-600 rounded-lg px-2 py-1 text-sm tabular-nums"
+        <label className="text-sm text-ink-300 flex-shrink-0">Acordado:</label>
+        <MinuteInput
+          value={plan.awakeMinutes}
+          onChange={onSetAwake}
+          min={60}
+          max={24 * 60}
+          step={30}
         />
-        <span className="text-sm text-ink-400">horas</span>
       </div>
 
       {/* Metas — entram no alocado */}
@@ -67,20 +72,16 @@ export function PlanEditor({ categories, plan, onSetAwake, onSetAllocation }: Pr
           const min = plan.allocations[c.id] ?? 0;
           return (
             <div key={c.id} className="flex items-center gap-2 bg-ink-900/50 rounded-lg px-2 py-1.5">
-              <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
-              <span className="text-sm flex-1">{c.name}</span>
-              <span className="text-[10px] text-ink-500 uppercase">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.color }} />
+              <span className="text-sm flex-1 truncate">{c.name}</span>
+              <span className="text-[10px] text-ink-500 uppercase flex-shrink-0">
                 {MACROBOX_LABEL[c.macrobox]}
               </span>
-              <input
-                type="number"
-                min={0}
-                step={5}
+              <MinuteInput
                 value={min}
-                onChange={e => onSetAllocation(c.id, parseInt(e.target.value || '0', 10))}
-                className="w-16 bg-ink-700 border border-ink-600 rounded px-1 py-0.5 text-sm tabular-nums text-right"
+                onChange={v => onSetAllocation(c.id, v)}
+                step={5}
               />
-              <span className="text-xs text-ink-400 w-6">min</span>
             </div>
           );
         })}
@@ -100,24 +101,43 @@ export function PlanEditor({ categories, plan, onSetAwake, onSetAllocation }: Pr
               const min = plan.allocations[c.id] ?? 0;
               return (
                 <div key={c.id} className="flex items-center gap-2 bg-ink-900/30 border border-dashed border-ink-700/60 rounded-lg px-2 py-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
-                  <span className="text-sm flex-1">{c.name}</span>
-                  <span className="text-[10px] text-ink-500">até</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={5}
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.color }} />
+                  <span className="text-sm flex-1 truncate">{c.name}</span>
+                  <span className="text-[10px] text-ink-500 flex-shrink-0">até</span>
+                  <MinuteInput
                     value={min}
-                    onChange={e => onSetAllocation(c.id, parseInt(e.target.value || '0', 10))}
-                    className="w-16 bg-ink-700 border border-ink-600 rounded px-1 py-0.5 text-sm tabular-nums text-right"
+                    onChange={v => onSetAllocation(c.id, v)}
+                    step={5}
                   />
-                  <span className="text-xs text-ink-400 w-6">min</span>
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      {/* Plano padrão */}
+      <div className="mt-4 pt-3 border-t border-ink-700/60 flex flex-wrap items-center gap-2">
+        <button
+          onClick={onSaveAsDefault}
+          className="text-[11px] px-3 py-1.5 rounded-lg bg-ink-700 hover:bg-ink-600 text-ink-300 transition min-h-[32px]"
+          title="Salva este plano como modelo para novos dias"
+        >
+          salvar como padrão
+        </button>
+        {hasDefault && (
+          <button
+            onClick={onApplyDefault}
+            className="text-[11px] px-3 py-1.5 rounded-lg bg-ink-700 hover:bg-ink-600 text-ink-300 transition min-h-[32px]"
+            title="Restaura o plano padrão para hoje"
+          >
+            aplicar padrão
+          </button>
+        )}
+        <span className="text-[11px] text-ink-600 italic ml-1">
+          {hasDefault ? 'plano padrão salvo' : 'nenhum padrão definido'}
+        </span>
+      </div>
     </div>
   );
 }

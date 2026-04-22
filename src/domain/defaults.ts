@@ -2,17 +2,133 @@ import { Category, Habit, Macrobox } from './types';
 
 // Paleta intencionalmente distinta entre categorias adjacentes.
 export const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'cat-trabalho',  name: 'Trabalho',         color: '#5b8def', macrobox: 'construcao',     enjoyment:  0, future:  2, priority: 1, budgetType: 'target'    },
-  { id: 'cat-estudo',    name: 'Estudo',           color: '#7c5bef', macrobox: 'construcao',     enjoyment:  1, future:  2, priority: 1, budgetType: 'target'    },
-  { id: 'cat-treino',    name: 'Treino',           color: '#26c281', macrobox: 'manutencao',     enjoyment:  0, future:  2, priority: 2, budgetType: 'target'    },
-  { id: 'cat-refeicao',  name: 'Refeições',        color: '#e8a23b', macrobox: 'sobrevivencia',  enjoyment:  1, future:  0, priority: 1, budgetType: 'protected' },
-  { id: 'cat-sono-prep', name: 'Sono / Higiene',   color: '#3aa6b9', macrobox: 'sobrevivencia',  enjoyment:  0, future:  1, priority: 1, budgetType: 'protected' },
-  { id: 'cat-social',    name: 'Conexão social',   color: '#ef5b8c', macrobox: 'nutricao',       enjoyment:  2, future:  1, priority: 2, budgetType: 'target'    },
-  { id: 'cat-lazer-ok',  name: 'Lazer ativo',      color: '#d96bff', macrobox: 'nutricao',       enjoyment:  2, future:  1, priority: 3, budgetType: 'target'    },
-  { id: 'cat-lazer-bx',  name: 'Lazer passivo',    color: '#b58bff', macrobox: 'nutricao',       enjoyment:  1, future: -1, priority: 4, budgetType: 'flexible'  },
-  { id: 'cat-casa',      name: 'Casa / Tarefas',   color: '#9ea4b3', macrobox: 'manutencao',     enjoyment: -1, future:  1, priority: 3, budgetType: 'target'    },
+  {
+    id: 'cat-trabalho',
+    name: 'Trabalho',
+    color: '#5b8def',
+    macrobox: 'construcao',
+    enjoyment: 0, future: 2, priority: 1,
+    budgetType: 'target',
+    aliases: [
+      'trabalhando', 'reunião', 'meeting', 'email', 'cliente', 'projeto',
+      'código', 'programando', 'planejando', 'organizando o dia', 'postar',
+      'conteúdo', 'retrospectiva', 'revisão', 'app', 'perspectempo',
+    ],
+  },
+  {
+    id: 'cat-estudo',
+    name: 'Estudo',
+    color: '#7c5bef',
+    macrobox: 'construcao',
+    enjoyment: 1, future: 2, priority: 1,
+    budgetType: 'target',
+    aliases: [
+      'estudando', 'lendo', 'livro', 'curso', 'aula', 'pesquisa',
+      'aprendendo', 'treinamento', 'leitura', 'podcast educativo',
+    ],
+  },
+  {
+    id: 'cat-treino',
+    name: 'Treino',
+    color: '#26c281',
+    macrobox: 'manutencao',
+    enjoyment: 0, future: 2, priority: 2,
+    budgetType: 'target',
+    aliases: [
+      'malhando', 'academia', 'correndo', 'correr', 'yoga', 'exercício',
+      'ginásio', 'ciclismo', 'natação', 'alongando', 'musculação',
+      'crossfit', 'esporte', 'pilates',
+    ],
+  },
+  {
+    id: 'cat-refeicao',
+    name: 'Refeições',
+    color: '#e8a23b',
+    macrobox: 'sobrevivencia',
+    enjoyment: 1, future: 0, priority: 1,
+    budgetType: 'protected',
+    aliases: [
+      'comendo', 'almoço', 'jantar', 'café', 'café da manhã',
+      'lanche', 'cozinhando', 'refeição', 'restaurante',
+    ],
+  },
+  {
+    id: 'cat-sono-prep',
+    name: 'Sono / Higiene',
+    color: '#3aa6b9',
+    macrobox: 'sobrevivencia',
+    enjoyment: 0, future: 1, priority: 1,
+    budgetType: 'protected',
+    aliases: [
+      'dormindo', 'cochilo', 'descanso', 'higiene', 'banho',
+      'ducha', 'rotina noturna', 'sono', 'dormindo', 'escovando',
+    ],
+  },
+  {
+    id: 'cat-social',
+    name: 'Conexão social',
+    color: '#ef5b8c',
+    macrobox: 'nutricao',
+    enjoyment: 2, future: 1, priority: 2,
+    budgetType: 'target',
+    aliases: [
+      'amigos', 'família', 'conversa', 'ligação', 'papo',
+      'encontro', 'vídeo chamada', 'conexão', 'socializar',
+      'saindo', 'happy hour', 'confraternização',
+    ],
+  },
+  {
+    id: 'cat-lazer-ok',
+    name: 'Lazer ativo',
+    color: '#d96bff',
+    macrobox: 'nutricao',
+    enjoyment: 2, future: 1, priority: 3,
+    budgetType: 'target',
+    aliases: [
+      'jogando', 'jogo', 'hobby', 'pintura', 'música', 'instrumento',
+      'criando', 'meditação', 'meditando', 'lúdico', 'boardgame',
+      'videogame criativo', 'culinária por prazer',
+    ],
+  },
+  {
+    id: 'cat-lazer-bx',
+    name: 'Lazer passivo',
+    color: '#b58bff',
+    macrobox: 'nutricao',
+    enjoyment: 1, future: -1, priority: 4,
+    budgetType: 'flexible',
+    aliases: [
+      'netflix', 'série', 'filme', 'tv', 'youtube', 'podcast',
+      'assistindo', 'relaxando', 'descanso passivo', 'prime video',
+      'disney+', 'streaming',
+    ],
+  },
+  {
+    id: 'cat-casa',
+    name: 'Casa / Tarefas',
+    color: '#9ea4b3',
+    macrobox: 'manutencao',
+    enjoyment: -1, future: 1, priority: 3,
+    budgetType: 'target',
+    aliases: [
+      'limpeza', 'lavando', 'cozinha', 'compras', 'arrumando',
+      'organização', 'tarefas domésticas', 'faxina', 'mercado',
+    ],
+  },
   // Scroll é CAP: 30 min é LIMITE TOLERADO, não meta. 0 min = ótimo. Não doa, não recebe.
-  { id: 'cat-scroll',    name: 'Scroll / Distrações', color: '#e85b5b', macrobox: 'vazamento',  enjoyment:  1, future: -2, priority: 5, budgetType: 'cap'        },
+  {
+    id: 'cat-scroll',
+    name: 'Scroll / Distrações',
+    color: '#e85b5b',
+    macrobox: 'vazamento',
+    enjoyment: 1, future: -2, priority: 5,
+    budgetType: 'cap',
+    aliases: [
+      'scrollando', 'rolando', 'instagram', 'tiktok', 'twitter',
+      'reddit', 'celular', 'distração', 'meme', 'notícias', 'browsing',
+      'reels', 'feed', 'x (twitter)',
+    ],
+  },
 ];
 
 // Hábitos default amarrados a categorias acima.

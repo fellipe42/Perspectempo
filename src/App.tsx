@@ -2,15 +2,21 @@ import { useRef, useState } from 'react';
 import { TodayPage } from './ui/pages/TodayPage';
 import { PerspectivePage } from './ui/pages/PerspectivePage';
 import { useStore } from './state/useStore';
+import { OnboardingModal } from './ui/components/OnboardingModal';
+import { InstallCoach } from './ui/components/InstallCoach';
 
 type Tab = 'today' | 'perspective';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('today');
-  const resetAll = useStore(s => s.resetAll);
+  const resetAll  = useStore(s => s.resetAll);
   const exportJSON = useStore(s => s.exportJSON);
   const importJSON = useStore(s => s.importJSON);
+  const profile   = useStore(s => s.profile);
+  const setProfile = useStore(s => s.setProfile);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const showOnboarding = !profile?.onboardingDone;
 
   function handleExport() {
     const blob = new Blob([exportJSON()], { type: 'application/json' });
@@ -28,7 +34,7 @@ export default function App() {
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    e.target.value = ''; // permite re-importar mesmo arquivo
+    e.target.value = '';
     if (!file) return;
     if (!confirm(
       `Importar "${file.name}"? Isso substitui seus dados atuais.\n` +
@@ -79,6 +85,14 @@ export default function App() {
             >
               Exportar
             </button>
+            {/* Acesso rápido ao perfil / onboarding */}
+            <button
+              onClick={() => setProfile({ onboardingDone: false })}
+              className="px-3 py-1.5 rounded-lg bg-ink-700 hover:bg-ink-600 min-h-[36px]"
+              title="Configurar perfil (data de nascimento e sono)"
+            >
+              Perfil
+            </button>
             <button
               onClick={() => {
                 if (confirm('Apagar todos os dados locais? Essa ação não pode ser desfeita.')) {
@@ -100,8 +114,18 @@ export default function App() {
       </main>
 
       <footer className="text-center text-[11px] sm:text-xs text-ink-500 py-4 px-4">
-        Dados salvos localmente no seu navegador. Nada sai do seu computador.
+        Dados salvos localmente no seu navegador. Nada sai do seu dispositivo.
       </footer>
+
+      {/* Onboarding — aparece no primeiro acesso ou ao clicar em "Perfil" */}
+      {showOnboarding && (
+        <OnboardingModal
+          onComplete={(data) => setProfile({ ...data, onboardingDone: true })}
+        />
+      )}
+
+      {/* Coach de instalação iOS — auto-exibe em Safari do iPhone se não instalado */}
+      <InstallCoach />
     </div>
   );
 }
