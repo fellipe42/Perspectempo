@@ -57,19 +57,21 @@ export function PlanEditor({
       </div>
 
       {/* Horas acordado */}
-      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-ink-700/60">
-        <label className="text-sm text-ink-300 flex-shrink-0">Acordado:</label>
-        <MinuteInput
-          value={plan.awakeMinutes}
-          onChange={onSetAwake}
-          min={60}
-          max={24 * 60}
-          step={30}
-        />
+      <div className="flex flex-col gap-2 mb-4 pb-4 border-b border-ink-700/60">
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-ink-300 flex-shrink-0">Acordado:</label>
+          <MinuteInput
+            value={plan.awakeMinutes}
+            onChange={onSetAwake}
+            min={60}
+            max={24 * 60}
+            step={30}
+          />
+        </div>
         {slack > 0 && (
           <button
             onClick={onAllocateSlack}
-            className="ml-auto text-[11px] px-2.5 py-1 rounded-lg bg-ink-700/70 hover:bg-ink-600 text-ink-300 transition flex-shrink-0"
+            className="self-start text-[11px] px-2.5 py-1 rounded-lg bg-ink-700/70 hover:bg-ink-600 text-ink-300 transition"
             title="Distribui o tempo livre proporcionalmente entre as atividades"
           >
             preencher {formatHM(slack)} livres

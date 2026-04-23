@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../state/useStore';
 import { todayISO } from '../../domain/time';
 import {
@@ -10,7 +10,7 @@ import {
 } from '../../domain/scoring';
 import { computeBalances } from '../../domain/timeTheft';
 import { computeHabitStatus } from '../../domain/habits';
-import { DayScore } from '../../domain/types';
+import { DayScore, Session } from '../../domain/types';
 import { FocusBlock } from '../focus/FocusBlock';
 import { FocusMode } from '../focus/FocusMode';
 import { CategoryChip } from '../components/CategoryChip';
@@ -42,6 +42,7 @@ export function TodayPage() {
     setAwakeMinutes, setAllocation, allocateSlack,
     saveAsDefaultPlan, applyDefaultPlan,
     setProfile,
+    deleteSession, restoreDeletedSession,
   } = useStore();
 
   const [mapOpen, setMapOpen] = useState(false);
@@ -49,6 +50,27 @@ export function TodayPage() {
   const [showPlan, setShowPlan] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [ribbonMode, setRibbonMode] = useState<'awake' | '24h'>('awake');
+
+  // Undo de delete — guarda sessão deletada por 6s
+  const [deletedSession, setDeletedSession] = useState<Session | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDeleteSession = useCallback((s: Session) => {
+    deleteSession(s.id);
+    setDeletedSession(s);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setDeletedSession(null), 6000);
+  }, [deleteSession]);
+
+  const handleUndoDelete = useCallback(() => {
+    if (!deletedSession) return;
+    restoreDeletedSession(deletedSession);
+    setDeletedSession(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  }, [deletedSession, restoreDeletedSession]);
+
+  useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }, []);
 
   const date = todayISO();
   const plan = plans[date];
@@ -173,10 +195,20 @@ export function TodayPage() {
 
       {/* ───────────── 3. DIA — régua cronológica ───────────── */}
       <div className="rounded-2xl bg-ink-800/40 border border-ink-700/70 px-5 py-4">
+        <div className="flex items-center justify-end mb-1 gap-2">
+          <button
+            onClick={() => setRibbonMode(m => m === 'awake' ? '24h' : 'awake')}
+            className="text-[10px] uppercase tracking-[0.2em] text-ink-500 hover:text-ink-300 transition px-2 py-1"
+          >
+            {ribbonMode === 'awake' ? 'ver 24h' : 'ver tempo hábil'}
+          </button>
+        </div>
         <DayRibbon
           sessions={sessions}
           categories={categories}
           awakeMinutes={plan.awakeMinutes}
+          wakeAtMin={profile?.sleepEndHour !== undefined ? profile.sleepEndHour * 60 : 6 * 60}
+          mode={ribbonMode}
         />
       </div>
 
@@ -300,12 +332,33 @@ export function TodayPage() {
         lastSession={lastSession}
         lastCategory={lastCategory}
         categories={orderedCats}
+        sessions={sessions}
         shiftLastSessionStart={shiftLastSessionStart}
         shiftLastSessionEnd={shiftLastSessionEnd}
         reassignLastSession={reassignLastSession}
         splitLastSession={splitLastSession}
         addRetroSession={addRetroSession}
+        onDeleteSession={handleDeleteSession}
       />
+
+      {/* ── Toast de undo para delete de sessão ── */}
+      {deletedSession && (() => {
+        const cat = categories.find(c => c.id === deletedSession.categoryId);
+        return (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-ink-700 border border-ink-600 rounded-xl px-4 py-3 shadow-2xl text-sm">
+            <span className="text-ink-300">
+              <span style={{ color: cat?.color }}>{cat?.name ?? 'Sessão'}</span>
+              {' '}deletada
+            </span>
+            <button
+              onClick={handleUndoDelete}
+              className="px-3 py-1 rounded-lg bg-ink-600 hover:bg-ink-500 text-ink-100 font-medium transition text-[12px]"
+            >
+              Desfazer
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

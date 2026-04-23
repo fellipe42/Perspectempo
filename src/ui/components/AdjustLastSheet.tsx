@@ -16,7 +16,7 @@
 
 import { useMemo, useState } from 'react';
 import { Category, Session } from '../../domain/types';
-import { formatHM } from '../../domain/time';
+import { formatHM, todayISO } from '../../domain/time';
 
 interface Props {
   open: boolean;
@@ -24,20 +24,23 @@ interface Props {
   lastSession: Session | null;
   lastCategory: Category | null;
   categories: Category[];
+  sessions: Session[];
   shiftLastSessionStart: (deltaMin: number) => void;
   shiftLastSessionEnd: (deltaMin: number) => void;
   reassignLastSession: (categoryId: string) => void;
   splitLastSession: (atMs: number, newCategoryId: string) => void;
   addRetroSession: (categoryId: string, startMs: number, endMs: number) => void;
+  onDeleteSession: (session: Session) => void;
 }
 
-type Mode = 'shift-start' | 'shift-end' | 'reassign' | 'split' | 'add-block';
+type Mode = 'shift-start' | 'shift-end' | 'reassign' | 'split' | 'add-block' | 'sessions';
 
 export function AdjustLastSheet({
   open, onClose,
-  lastSession, lastCategory, categories,
+  lastSession, lastCategory, categories, sessions,
   shiftLastSessionStart, shiftLastSessionEnd,
   reassignLastSession, splitLastSession, addRetroSession,
+  onDeleteSession,
 }: Props) {
   const [mode, setMode] = useState<Mode>('shift-start');
 
@@ -132,6 +135,9 @@ export function AdjustLastSheet({
           </Tab>
           <Tab active={mode === 'add-block'} onClick={() => setMode('add-block')}>
             + bloco
+          </Tab>
+          <Tab active={mode === 'sessions'} onClick={() => setMode('sessions')}>
+            sessões
           </Tab>
         </div>
 
@@ -234,6 +240,14 @@ export function AdjustLastSheet({
             </>
           )}
 
+          {mode === 'sessions' && (
+            <SessionsList
+              sessions={sessions}
+              categories={categories}
+              onDelete={(s) => { onDeleteSession(s); onClose(); }}
+            />
+          )}
+
           {mode === 'add-block' && (
             <>
               <p className="text-sm text-ink-300">
@@ -296,6 +310,72 @@ export function AdjustLastSheet({
         </div>
       </div>
     </Backdrop>
+  );
+}
+
+function SessionsList({
+  sessions, categories, onDelete,
+}: {
+  sessions: Session[];
+  categories: Category[];
+  onDelete: (s: Session) => void;
+}) {
+  const catById = new Map(categories.map(c => [c.id, c]));
+  const today = todayISO();
+
+  // Sessões de hoje em ordem reversa (mais recente primeiro), incluindo as de outros dias que provavelmente o usuário quer ver
+  const todaySessions = sessions
+    .filter(s => {
+      const d = new Date(s.startedAt);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return iso === today;
+    })
+    .slice()
+    .reverse();
+
+  const allRecent = sessions.slice().reverse().slice(0, 20);
+  const display = todaySessions.length > 0 ? todaySessions : allRecent;
+
+  if (display.length === 0) {
+    return <p className="text-sm text-ink-400 italic">Nenhuma sessão registrada.</p>;
+  }
+
+  return (
+    <div className="space-y-2 max-h-72 overflow-y-auto">
+      <p className="text-xs text-ink-500 italic mb-3">
+        Toque na lixeira para deletar. Você poderá desfazer por alguns segundos.
+      </p>
+      {display.map(s => {
+        const cat = catById.get(s.categoryId);
+        const start = new Date(s.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const end = s.endedAt
+          ? new Date(s.endedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          : 'agora';
+        const dur = Math.round(((s.endedAt ?? Date.now()) - s.startedAt) / 60_000);
+        return (
+          <div key={s.id} className="flex items-center gap-2 bg-ink-900/50 rounded-lg px-3 py-2">
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ background: cat?.color ?? '#666' }}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-ink-200 truncate">{cat?.name ?? '?'}</div>
+              <div className="text-[11px] text-ink-500 tabular-nums">
+                {start} → {end} · {formatHM(dur)}
+              </div>
+            </div>
+            <button
+              onClick={() => onDelete(s)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-500 hover:text-red-300 hover:bg-red-500/10 transition flex-shrink-0"
+              aria-label="Deletar sessão"
+              title="Deletar esta sessão"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

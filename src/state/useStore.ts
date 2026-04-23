@@ -18,6 +18,10 @@ interface StoreActions {
   splitLastSession: (atMs: number, newCategoryId: string) => void;
   addRetroSession: (categoryId: string, startMs: number, endMs: number) => void;
 
+  // deletar/restaurar sessão
+  deleteSession: (id: string) => void;
+  restoreDeletedSession: (session: Session) => void;
+
   // plano
   ensureTodayPlan: () => void;
   setAwakeMinutes: (min: number) => void;
@@ -202,6 +206,19 @@ export const useStore = create<Store>((set, get) => {
       };
       // Insere em ordem cronológica para manter shiftActiveStart correto
       const sessions = [...state.sessions, newSession].sort((a, b) => a.startedAt - b.startedAt);
+      persist({ sessions });
+    },
+
+    deleteSession: (id) => {
+      const state = get();
+      const sessions = state.sessions.filter(s => s.id !== id);
+      const activeSessionId = state.activeSessionId === id ? null : state.activeSessionId;
+      persist({ sessions, activeSessionId });
+    },
+
+    restoreDeletedSession: (session) => {
+      const state = get();
+      const sessions = [...state.sessions, session].sort((a, b) => a.startedAt - b.startedAt);
       persist({ sessions });
     },
 

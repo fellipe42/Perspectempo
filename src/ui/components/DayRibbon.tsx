@@ -1,86 +1,139 @@
 // =====================================================================
 // DayRibbon — régua horizontal do dia, por macrocaixa.
 //
-// Eixo X = awakeMinutes (default 16h).
-//   - Passado: blocos contíguos rastreados, cor = macrocaixa
-//   - "Agora": linha vertical em ouro
-//   - Futuro: traço fantasma hachurado
-//
-// Auto-explicação:
-//   - Cabeçalho mostra "rastreado / acordado"
-//   - Eixo inferior tem horas reais (06h, 12h, 18h)
-//   - Legenda compacta na primeira renderização (cores + labels)
-//   - Princípio: honesto, não inventa o que não foi rastreado.
+// Dois modos:
+//   'awake' — eixo = janela de tempo acordado (wakeAtMin … wakeAtMin+awakeMinutes).
+//             Pode cruzar meia-noite. Filtra sessões dentro dessa janela.
+//   '24h'   — eixo fixo 0h–24h (um dia de calendário inteiro).
+//             Filtra sessões pelo dia local (não UTC), trunca na meia-noite.
 // =====================================================================
 
 import { Category, Macrobox, Session } from '../../domain/types';
 import { MACROBOX_COLOR, MACROBOX_LABEL } from '../../domain/defaults';
-import { formatHM, minutesBetween, todayISO } from '../../domain/time';
+import { formatHM, minutesBetween } from '../../domain/time';
 
 interface Props {
   sessions: Session[];
   categories: Category[];
   awakeMinutes: number;
-  /** Horário de acordar em minutos desde meia-noite. Default 06:00. */
   wakeAtMin?: number;
+  mode?: 'awake' | '24h';
   now?: number;
+}
+
+/** Data local no formato YYYY-MM-DD */
+function localISO(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function DayRibbon({
   sessions, categories, awakeMinutes,
   wakeAtMin = 6 * 60,
+  mode = 'awake',
   now = Date.now(),
 }: Props) {
-  const date = todayISO();
+  const today = localISO(now);
   const catById = new Map(categories.map(c => [c.id, c]));
 
-  // Sessões de hoje, em ordem cronológica.
+  // ── Definição do eixo X ──
+  const axisStartMin: number = mode === '24h' ? 0 : wakeAtMin;
+  const axisEndMin: number   = mode === '24h' ? 24 * 60 : wakeAtMin + awakeMinutes;
+  const axisDurationMin      = axisEndMin - axisStartMin;
+
+  // Minutos desde meia-noite para o instante "now"
+  const nowMinSinceMidnight = (new Date(now).getHours() * 60 + new Date(now).getMinutes());
+
+  /** Converte ms epoch → minutos dentro do eixo (pode ficar fora de [0, axisDuration]) */
+  function toAxisMin(ms: number): number {
+    const d = new Date(ms);
+    // minutos desde meia-noite do dia local em que ms cai
+    const msLocalMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const minLocal = (ms - msLocalMidnight) / 60_000;
+    // Se mode='awake' e a sessão é do dia SEGUINTE (cruza meia-noite), soma 24h
+    if (mode === 'awake' && localISO(ms) > today) {
+      return minLocal + 24 * 60 - axisStartMin;
+    }
+    return minLocal - axisStartMin;
+  }
+
+  // ── Filtragem de sessões ──
+  function sessionIsVisible(s: Session): boolean {
+    const endMs = s.endedAt ?? now;
+    if (mode === '24h') {
+      // Qualquer sessão cujo início OU fim é no dia local de hoje
+      return localISO(s.startedAt) === today || localISO(endMs) === today;
+    }
+    // Modo awake: sessões cujo início OU fim cai dentro da janela [axisStart, axisEnd)
+    const startMin = toAxisMin(s.startedAt);
+    const endMin   = toAxisMin(endMs);
+    return endMin > 0 && startMin < axisDurationMin;
+  }
+
   const todays = sessions
-    .filter(s => new Date(s.startedAt).toISOString().slice(0, 10) === date)
+    .filter(sessionIsVisible)
     .sort((a, b) => a.startedAt - b.startedAt);
 
-  // Agrupa em "runs" cronológicos por macrocaixa.
-  type Run = { macro: Macrobox; minutes: number };
+  // ── Runs por macrocaixa ──
+  type Run = { macro: Macrobox; startPct: number; widthPct: number };
   const runs: Run[] = [];
   const macrosUsed = new Set<Macrobox>();
   let trackedMin = 0;
+
   for (const s of todays) {
     const cat = catById.get(s.categoryId);
     if (!cat) continue;
-    const dur = minutesBetween(s.startedAt, s.endedAt ?? now);
+
+    const rawStart = toAxisMin(s.startedAt);
+    const rawEnd   = toAxisMin(s.endedAt ?? now);
+
+    // Clamp ao eixo
+    const clampedStart = Math.max(0, rawStart);
+    const clampedEnd   = Math.min(axisDurationMin, rawEnd);
+    const dur = clampedEnd - clampedStart;
     if (dur <= 0) continue;
+
     trackedMin += dur;
     macrosUsed.add(cat.macrobox);
+
+    const startPct = (clampedStart / axisDurationMin) * 100;
+    const widthPct = (dur / axisDurationMin) * 100;
+
+    // Funde runs adjacentes da mesma macrocaixa
     const last = runs[runs.length - 1];
-    if (last && last.macro === cat.macrobox) {
-      last.minutes += dur;
+    if (last && last.macro === cat.macrobox && Math.abs((last.startPct + last.widthPct) - startPct) < 0.5) {
+      last.widthPct += widthPct;
     } else {
-      runs.push({ macro: cat.macrobox, minutes: dur });
+      runs.push({ macro: cat.macrobox, startPct, widthPct });
     }
   }
 
-  const axisMinutes = Math.max(awakeMinutes, trackedMin);
-  const trackedPct  = (trackedMin / axisMinutes) * 100;
-  const overPct     = Math.max(0, (trackedMin - awakeMinutes) / axisMinutes) * 100;
+  // ── "Agora" em % do eixo ──
+  const nowAxisMin = mode === '24h' ? nowMinSinceMidnight : nowMinSinceMidnight - axisStartMin;
+  const nowPct = Math.max(0, Math.min(100, (nowAxisMin / axisDurationMin) * 100));
+  const hasNowMarker = nowPct > 0 && nowPct < 100;
 
-  // Marcadores de hora reais (06h, 09h, 12h, 15h, 18h, 21h, …).
-  const sleepAtMin = wakeAtMin + awakeMinutes;
-  const hourTicks: { label: string; pct: number }[] = [];
-  // tick a cada 3h, sempre alinhado em hora cheia
-  const startHour = Math.ceil(wakeAtMin / 60);
-  const endHour   = Math.floor(sleepAtMin / 60);
-  for (let h = startHour; h <= endHour; h += 3) {
-    if (h === startHour && h * 60 === wakeAtMin) continue; // evita duplicar com "acordar"
-    if (h === endHour && h * 60 === sleepAtMin) continue;
-    const minSinceWake = h * 60 - wakeAtMin;
-    const pct = (minSinceWake / axisMinutes) * 100;
-    if (pct > 4 && pct < 96) {
-      hourTicks.push({
-        label: `${String(h).padStart(2, '0')}h`,
-        pct,
-      });
+  // ── Ticks de hora ──
+  const ticks: { label: string; pct: number }[] = [];
+  const step = axisDurationMin <= 8 * 60 ? 1 : axisDurationMin <= 14 * 60 ? 2 : 3;
+  const startHour = Math.ceil(axisStartMin / 60);
+  const endHour   = Math.floor(axisEndMin / 60);
+  for (let h = startHour; h <= endHour; h += step) {
+    const minOnAxis = h * 60 - axisStartMin;
+    const pct = (minOnAxis / axisDurationMin) * 100;
+    // Margem maior nas bordas para não colidir com labels extremas
+    if (pct > 4 && pct < 91) {
+      ticks.push({ label: `${String(h % 24).padStart(2, '0')}h`, pct });
     }
   }
+
+  const startLabel = fmtHourFromMin(axisStartMin);
+  const endLabel   = mode === '24h' ? '24h' : fmtHourFromMin(axisEndMin);
+
+  // Overflow além das horas acordado (só relevante no modo awake)
+  const overPct = mode === 'awake'
+    ? Math.max(0, ((trackedMin - awakeMinutes) / axisDurationMin) * 100)
+    : 0;
 
   return (
     <section aria-label="Trajeto do dia">
@@ -90,127 +143,120 @@ export function DayRibbon({
         </div>
         <div className="text-[11px] text-ink-400 tabular-nums">
           <span className="text-ink-100">{formatHM(trackedMin)}</span>
-          <span className="text-ink-500"> rastreado · </span>
-          <span className="text-ink-300">{formatHM(awakeMinutes)}</span>
-          <span className="text-ink-500"> acordado</span>
+          <span className="text-ink-500"> rastreado</span>
+          {mode === 'awake' && (
+            <>
+              <span className="text-ink-500"> · </span>
+              <span className="text-ink-300">{formatHM(awakeMinutes)}</span>
+              <span className="text-ink-500"> acordado</span>
+            </>
+          )}
         </div>
       </div>
 
       {/* régua */}
       <div className="relative w-full h-8 rounded-md overflow-hidden bg-ink-800/60 border border-ink-700/80">
-        {/* blocos passados */}
-        <div className="absolute inset-0 flex">
-          {runs.map((r, i) => (
-            <div
-              key={i}
-              style={{
-                width: `${(r.minutes / axisMinutes) * 100}%`,
-                background: MACROBOX_COLOR[r.macro],
-                opacity: 0.92,
-              }}
-              title={`${MACROBOX_LABEL[r.macro]}: ${formatHM(r.minutes)}`}
-            />
-          ))}
-        </div>
+        {/* blocos rastreados — posicionados absolutamente no eixo */}
+        {runs.map((r, i) => (
+          <div
+            key={i}
+            className="absolute top-0 bottom-0"
+            style={{
+              left: `${r.startPct}%`,
+              width: `${r.widthPct}%`,
+              background: MACROBOX_COLOR[r.macro],
+              opacity: 0.92,
+            }}
+            title={`${MACROBOX_LABEL[r.macro]}: ${formatHM(Math.round((r.widthPct / 100) * axisDurationMin))}`}
+          />
+        ))}
 
-        {/* traço fantasma do futuro */}
-        {trackedPct < 100 && (
+        {/* futuro — hachura do nowPct até o fim */}
+        {hasNowMarker && (
           <div
             className="absolute top-0 bottom-0"
             style={{
-              left: `${trackedPct}%`,
+              left: `${nowPct}%`,
               right: 0,
               backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 4px, #2a2f3a 4px 5px)',
               opacity: 0.6,
             }}
-            aria-label="ainda por viver"
           />
         )}
 
-        {/* marcador AGORA — mais óbvio: linha em ouro com bolinha no topo */}
-        {trackedPct > 0 && trackedPct <= 100 && (
+        {/* linha AGORA */}
+        {hasNowMarker && (
           <>
             <div
               className="absolute top-0 bottom-0 w-[2px] bg-gold"
-              style={{ left: `calc(${trackedPct}% - 1px)` }}
-              aria-label="agora"
+              style={{ left: `calc(${nowPct}% - 1px)` }}
             />
             <div
               className="absolute -top-[3px] w-2 h-2 rounded-full bg-gold ring-2 ring-ink-900"
-              style={{ left: `calc(${trackedPct}% - 4px)` }}
+              style={{ left: `calc(${nowPct}% - 4px)` }}
             />
           </>
         )}
 
-        {/* transbordou awake */}
+        {/* overflow do plano (modo awake) */}
         {overPct > 0 && (
           <div
             className="absolute top-0 bottom-0 border-l border-overflow/60"
             style={{
-              left: `${100 - overPct}%`,
+              left: `${Math.min(100, (awakeMinutes / axisDurationMin) * 100)}%`,
               right: 0,
               background: 'repeating-linear-gradient(90deg, transparent 0 3px, #c97e5e22 3px 4px)',
             }}
-            title="Passou do tempo acordado planejado"
           />
         )}
       </div>
 
-      {/* eixo: horas reais + ancoragem (acordar / dormir) */}
+      {/* eixo de horas */}
       <div className="relative h-4 mt-1">
-        {/* ticks de hora */}
-        {hourTicks.map((t, i) => (
-          <div
-            key={i}
-            className="absolute top-0"
-            style={{ left: `calc(${t.pct}% - 8px)` }}
-          >
+        {ticks.map((t, i) => (
+          <div key={i} className="absolute top-0" style={{ left: `calc(${t.pct}% - 8px)` }}>
             <div className="h-1.5 w-px bg-ink-700 mx-auto" />
             <div className="text-[9px] tabular-nums text-ink-500 mt-px text-center w-4">
               {t.label}
             </div>
           </div>
         ))}
-        {/* "agora" no eixo */}
-        {trackedPct > 0 && trackedPct <= 100 && (
+        {/* label AGORA */}
+        {hasNowMarker && (
           <div
-            className="absolute top-0 text-[9px] uppercase tracking-widest text-gold"
+            className="absolute top-1 text-[9px] uppercase tracking-widest text-gold"
             style={{
-              left: trackedPct > 90 ? 'auto' : `calc(${trackedPct}% + 4px)`,
-              right: trackedPct > 90 ? '0' : 'auto',
-              top: '4px',
+              left: nowPct > 88 ? 'auto' : `calc(${nowPct}% + 4px)`,
+              right: nowPct > 88 ? 0 : 'auto',
             }}
           >
             agora
           </div>
         )}
+        {/* bordas */}
         <div className="absolute left-0 top-1 text-[9px] uppercase tracking-widest text-ink-500">
-          {fmtHourFromMin(wakeAtMin)}
+          {startLabel}
         </div>
         <div className="absolute right-0 top-1 text-[9px] uppercase tracking-widest text-ink-500">
-          {fmtHourFromMin(sleepAtMin)}
+          {endLabel}
         </div>
       </div>
 
-      {/* legenda compacta — só mostra macrocaixas que apareceram hoje */}
+      {/* legenda */}
       {macrosUsed.size > 0 && (
         <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
           {[...macrosUsed].map(m => (
             <span key={m} className="inline-flex items-center gap-1.5 text-[10px] text-ink-400">
-              <span
-                className="inline-block w-2 h-2 rounded-sm"
-                style={{ background: MACROBOX_COLOR[m] }}
-              />
+              <span className="inline-block w-2 h-2 rounded-sm" style={{ background: MACROBOX_COLOR[m] }} />
               {MACROBOX_LABEL[m].toLowerCase()}
             </span>
           ))}
         </div>
       )}
 
-      {/* mensagem para dia em branco */}
       {trackedMin === 0 && (
         <div className="mt-2 text-[11px] text-ink-500 italic">
-          Nada rastreado ainda hoje. Comece uma atividade pra ver o trajeto desenhar.
+          Nada rastreado ainda hoje. Comece uma atividade pra ver o trajeto.
         </div>
       )}
     </section>
