@@ -65,7 +65,7 @@ export function AdjustLastSheet({
   if (!lastSession || !lastCategory) {
     return (
       <Backdrop onClose={onClose}>
-        <div className="rounded-2xl bg-ink-800 border border-ink-700 p-6 max-w-md w-full">
+        <div className="max-h-[min(85vh,42rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-ink-700 bg-ink-800 p-6">
           <h3 className="font-serif text-xl text-ink-100">Sem sessão recente</h3>
           <p className="mt-2 text-sm text-ink-300">
             Comece uma atividade primeiro. Você poderá ajustar o início ou trocar
@@ -96,29 +96,41 @@ export function AdjustLastSheet({
 
   return (
     <Backdrop onClose={onClose}>
-      <div className="rounded-2xl bg-ink-800 border border-ink-700 max-w-md w-full overflow-hidden">
+      <div className="flex max-h-[min(92vh,48rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800">
         {/* Cabeçalho */}
-        <div className="px-5 py-4 border-b border-ink-700/80">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-ink-400">
-            ajustar período
-          </div>
-          <div className="mt-1.5 text-sm text-ink-200 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <span style={{ color: lastCategory.color }}>{lastCategory.name}</span>
-            <span className="text-ink-600">·</span>
-            <span className="tabular-nums text-ink-400">
-              {startLocal} → {endLocal}
-            </span>
-            <span className="text-ink-600">({formatHM(elapsedMin)})</span>
-            {isActive && (
-              <span className="text-[10px] bg-ink-700 text-ink-300 px-1.5 py-0.5 rounded">
-                ativa
-              </span>
-            )}
+        <div className="border-b border-ink-700/80 px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-ink-400">
+                ajustar período
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-ink-200">
+                <span style={{ color: lastCategory.color }}>{lastCategory.name}</span>
+                <span className="text-ink-600">·</span>
+                <span className="tabular-nums text-ink-400">
+                  {startLocal} → {endLocal}
+                </span>
+                <span className="text-ink-600">({formatHM(elapsedMin)})</span>
+                {isActive && (
+                  <span className="rounded bg-ink-700 px-1.5 py-0.5 text-[10px] text-ink-300">
+                    ativa
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
+              aria-label="Fechar ajuste"
+              title="Fechar"
+            >
+              ×
+            </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex overflow-x-auto border-b border-ink-700/80 no-scrollbar">
+        <div className="flex flex-shrink-0 overflow-x-auto border-b border-ink-700/80 no-scrollbar">
           <Tab active={mode === 'shift-start'} onClick={() => setMode('shift-start')}>
             mover início
           </Tab>
@@ -142,169 +154,171 @@ export function AdjustLastSheet({
         </div>
 
         {/* Conteúdo por modo */}
-        <div className="px-5 py-5 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <div className="space-y-4 pb-1">
 
-          {mode === 'shift-start' && (
-            <>
-              <p className="text-sm text-ink-300">
-                {isActive
-                  ? 'Recuar ou adiantar quando essa sessão começou.'
-                  : 'Corrigir quando essa sessão encerrada começou (o fim permanece).'}
-              </p>
-              <Stepper
-                value={shiftMin}
-                onChange={setShiftMin}
-                steps={[-30, -15, -5, +5, +15, +30]}
-                unit="min"
-              />
-              <button
-                onClick={() => { shiftLastSessionStart(shiftMin); onClose(); }}
-                className="w-full mt-2 px-4 py-3 rounded-lg bg-gold text-ink-900 font-medium text-sm hover:brightness-110"
-              >
-                {shiftMin >= 0
-                  ? `adiar início em ${shiftMin} min`
-                  : `recuar início em ${-shiftMin} min`}
-              </button>
-            </>
-          )}
+            {mode === 'shift-start' && (
+              <>
+                <p className="text-sm text-ink-300">
+                  {isActive
+                    ? 'Recuar ou adiantar quando essa sessão começou.'
+                    : 'Corrigir quando essa sessão encerrada começou (o fim permanece).'}
+                </p>
+                <Stepper
+                  value={shiftMin}
+                  onChange={setShiftMin}
+                  steps={[-30, -15, -5, +5, +15, +30]}
+                  unit="min"
+                />
+                <button
+                  onClick={() => { shiftLastSessionStart(shiftMin); onClose(); }}
+                  className="mt-2 w-full rounded-lg bg-gold px-4 py-3 text-sm font-medium text-ink-900 hover:brightness-110"
+                >
+                  {shiftMin >= 0
+                    ? `adiar início em ${shiftMin} min`
+                    : `recuar início em ${-shiftMin} min`}
+                </button>
+              </>
+            )}
 
-          {mode === 'shift-end' && !isActive && (
-            <>
-              <p className="text-sm text-ink-300">
-                Corrigir quando essa sessão terminou (o início permanece).
-              </p>
-              <Stepper
-                value={endShiftMin}
-                onChange={setEndShiftMin}
-                steps={[-30, -15, -5, +5, +15]}
-                unit="min"
-              />
-              <button
-                onClick={() => { shiftLastSessionEnd(endShiftMin); onClose(); }}
-                className="w-full mt-2 px-4 py-3 rounded-lg bg-gold text-ink-900 font-medium text-sm hover:brightness-110"
-              >
-                {endShiftMin >= 0
-                  ? `adiar fim em ${endShiftMin} min`
-                  : `recuar fim em ${-endShiftMin} min`}
-              </button>
-            </>
-          )}
+            {mode === 'shift-end' && !isActive && (
+              <>
+                <p className="text-sm text-ink-300">
+                  Corrigir quando essa sessão terminou (o início permanece).
+                </p>
+                <Stepper
+                  value={endShiftMin}
+                  onChange={setEndShiftMin}
+                  steps={[-30, -15, -5, +5, +15]}
+                  unit="min"
+                />
+                <button
+                  onClick={() => { shiftLastSessionEnd(endShiftMin); onClose(); }}
+                  className="mt-2 w-full rounded-lg bg-gold px-4 py-3 text-sm font-medium text-ink-900 hover:brightness-110"
+                >
+                  {endShiftMin >= 0
+                    ? `adiar fim em ${endShiftMin} min`
+                    : `recuar fim em ${-endShiftMin} min`}
+                </button>
+              </>
+            )}
 
-          {mode === 'reassign' && (
-            <>
-              <p className="text-sm text-ink-300">
-                Trocar a categoria do último período sem perder o intervalo.
-              </p>
-              <CategoryPicker
+            {mode === 'reassign' && (
+              <>
+                <p className="text-sm text-ink-300">
+                  Trocar a categoria do último período sem perder o intervalo.
+                </p>
+                <CategoryPicker
+                  categories={categories}
+                  value={reassignTo}
+                  onChange={setReassignTo}
+                />
+                <button
+                  onClick={() => { reassignLastSession(reassignTo); onClose(); }}
+                  disabled={reassignTo === lastCategory.id}
+                  className="mt-2 w-full rounded-lg bg-gold px-4 py-3 text-sm font-medium text-ink-900 hover:brightness-110 disabled:bg-ink-700 disabled:text-ink-500"
+                >
+                  reatribuir
+                </button>
+              </>
+            )}
+
+            {mode === 'split' && (
+              <>
+                <p className="text-sm text-ink-300">
+                  "Há {splitAgoMin} min eu troquei de atividade, mas só registrei agora."
+                </p>
+                <Stepper
+                  value={splitAgoMin}
+                  onChange={setSplitAgoMin}
+                  steps={[5, 10, 15, 30, 45, 60]}
+                  unit="min atrás"
+                  positiveOnly
+                />
+                <CategoryPicker
+                  categories={categories}
+                  value={splitTo}
+                  onChange={setSplitTo}
+                />
+                <button
+                  onClick={() => {
+                    const at = (lastSession.endedAt ?? Date.now()) - splitAgoMin * 60_000;
+                    splitLastSession(at, splitTo);
+                    onClose();
+                  }}
+                  className="mt-2 w-full rounded-lg bg-gold px-4 py-3 text-sm font-medium text-ink-900 hover:brightness-110"
+                >
+                  dividir
+                </button>
+              </>
+            )}
+
+            {mode === 'sessions' && (
+              <SessionsList
+                sessions={sessions}
                 categories={categories}
-                value={reassignTo}
-                onChange={setReassignTo}
+                onDelete={(s) => { onDeleteSession(s); onClose(); }}
               />
-              <button
-                onClick={() => { reassignLastSession(reassignTo); onClose(); }}
-                disabled={reassignTo === lastCategory.id}
-                className="w-full mt-2 px-4 py-3 rounded-lg bg-gold text-ink-900 font-medium text-sm hover:brightness-110 disabled:bg-ink-700 disabled:text-ink-500"
-              >
-                reatribuir
-              </button>
-            </>
-          )}
+            )}
 
-          {mode === 'split' && (
-            <>
-              <p className="text-sm text-ink-300">
-                "Há {splitAgoMin} min eu troquei de atividade, mas só registrei agora."
-              </p>
-              <Stepper
-                value={splitAgoMin}
-                onChange={setSplitAgoMin}
-                steps={[5, 10, 15, 30, 45, 60]}
-                unit="min atrás"
-                positiveOnly
-              />
-              <CategoryPicker
-                categories={categories}
-                value={splitTo}
-                onChange={setSplitTo}
-              />
-              <button
-                onClick={() => {
-                  const at = (lastSession.endedAt ?? Date.now()) - splitAgoMin * 60_000;
-                  splitLastSession(at, splitTo);
-                  onClose();
-                }}
-                className="w-full mt-2 px-4 py-3 rounded-lg bg-gold text-ink-900 font-medium text-sm hover:brightness-110"
-              >
-                dividir
-              </button>
-            </>
-          )}
+            {mode === 'add-block' && (
+              <>
+                <p className="text-sm text-ink-300">
+                  Adicionar um bloco que você esqueceu de registrar.
+                </p>
 
-          {mode === 'sessions' && (
-            <SessionsList
-              sessions={sessions}
-              categories={categories}
-              onDelete={(s) => { onDeleteSession(s); onClose(); }}
-            />
-          )}
-
-          {mode === 'add-block' && (
-            <>
-              <p className="text-sm text-ink-300">
-                Adicionar um bloco que você esqueceu de registrar.
-              </p>
-
-              <div className="space-y-4">
-                <div>
-                  <div className="text-xs text-ink-400 mb-1.5">Começou há</div>
-                  <Stepper
-                    value={blockStartAgo}
-                    onChange={setBlockStartAgo}
-                    steps={[30, 60, 90, 120, 180]}
-                    unit="min atrás"
-                    positiveOnly
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <div className="mb-1.5 text-xs text-ink-400">Começou há</div>
+                    <Stepper
+                      value={blockStartAgo}
+                      onChange={setBlockStartAgo}
+                      steps={[30, 60, 90, 120, 180]}
+                      unit="min atrás"
+                      positiveOnly
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-1.5 text-xs text-ink-400">Duração</div>
+                    <Stepper
+                      value={blockDuration}
+                      onChange={setBlockDuration}
+                      steps={[15, 30, 45, 60, 90]}
+                      unit="min"
+                      positiveOnly
+                    />
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs text-ink-400 mb-1.5">Duração</div>
-                  <Stepper
-                    value={blockDuration}
-                    onChange={setBlockDuration}
-                    steps={[15, 30, 45, 60, 90]}
-                    unit="min"
-                    positiveOnly
-                  />
+
+                <div className="rounded-lg border border-ink-700/60 bg-ink-900/50 px-3 py-2 text-xs tabular-nums text-ink-400">
+                  Vai registrar: <span className="text-ink-200">{blockStartStr} → {blockEndStr}</span>
+                  {' '}({formatHM(blockDuration)})
                 </div>
-              </div>
 
-              <div className="rounded-lg bg-ink-900/50 border border-ink-700/60 px-3 py-2 text-xs text-ink-400 tabular-nums">
-                Vai registrar: <span className="text-ink-200">{blockStartStr} → {blockEndStr}</span>
-                {' '}({formatHM(blockDuration)})
-              </div>
+                <CategoryPicker
+                  categories={categories}
+                  value={blockCat}
+                  onChange={setBlockCat}
+                />
 
-              <CategoryPicker
-                categories={categories}
-                value={blockCat}
-                onChange={setBlockCat}
-              />
-
-              <button
-                onClick={() => {
-                  if (blockEnd > Date.now()) return; // não pode ser no futuro
-                  addRetroSession(blockCat, blockStart, blockEnd);
-                  onClose();
-                }}
-                disabled={blockEnd > Date.now() || blockDuration < 1}
-                className="w-full mt-2 px-4 py-3 rounded-lg bg-gold text-ink-900 font-medium text-sm hover:brightness-110 disabled:bg-ink-700 disabled:text-ink-500"
-              >
-                adicionar bloco
-              </button>
-            </>
-          )}
+                <button
+                  onClick={() => {
+                    if (blockEnd > Date.now()) return;
+                    addRetroSession(blockCat, blockStart, blockEnd);
+                    onClose();
+                  }}
+                  disabled={blockEnd > Date.now() || blockDuration < 1}
+                  className="mt-2 w-full rounded-lg bg-gold px-4 py-3 text-sm font-medium text-ink-900 hover:brightness-110 disabled:bg-ink-700 disabled:text-ink-500"
+                >
+                  adicionar bloco
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-ink-700/80 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-ink-400 hover:text-ink-100 text-sm">
+        <div className="flex flex-shrink-0 justify-end border-t border-ink-700/80 px-5 py-3">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-ink-400 hover:text-ink-100">
             cancelar
           </button>
         </div>
@@ -382,11 +396,14 @@ function SessionsList({
 function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center p-4"
+      className="fixed inset-0 z-40 flex items-end justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm md:items-center"
       onClick={onClose}
-      style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+      }}
     >
-      <div onClick={e => e.stopPropagation()} className="w-full max-w-md">
+      <div onClick={e => e.stopPropagation()} className="my-auto w-full max-w-md">
         {children}
       </div>
     </div>

@@ -58,7 +58,7 @@ export function PlanEditor({
 
       {/* Horas acordado */}
       <div className="flex flex-col gap-2 mb-4 pb-4 border-b border-ink-700/60">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-ink-300 flex-shrink-0">Acordado:</label>
           <MinuteInput
             value={plan.awakeMinutes}
@@ -66,12 +66,13 @@ export function PlanEditor({
             min={60}
             max={24 * 60}
             step={30}
+            compact
           />
         </div>
         {slack > 0 && (
           <button
             onClick={onAllocateSlack}
-            className="self-start text-[11px] px-2.5 py-1 rounded-lg bg-ink-700/70 hover:bg-ink-600 text-ink-300 transition"
+            className="self-start max-w-full text-[11px] px-2.5 py-1 rounded-lg bg-ink-700/70 hover:bg-ink-600 text-ink-300 transition whitespace-normal break-words"
             title="Distribui o tempo livre proporcionalmente entre as atividades"
           >
             preencher {formatHM(slack)} livres
@@ -105,16 +106,24 @@ export function PlanEditor({
         {targets.map(c => {
           const min = plan.allocations[c.id] ?? 0;
           return (
-            <div key={c.id} className="flex items-center gap-2 bg-ink-900/50 rounded-lg px-3 py-2">
+            <div key={c.id} className="flex items-center gap-2 bg-ink-900/50 rounded-lg px-2.5 py-2 sm:px-3">
               <span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                className="hidden h-2.5 w-2.5 rounded-full flex-shrink-0 sm:block"
                 style={{ background: c.color }}
               />
-              <span className="text-sm flex-1 min-w-0 truncate text-ink-200">{c.name}</span>
+              <div className="flex-1 min-w-0 pr-1 sm:pr-2">
+                <span className="block truncate text-sm text-ink-200">{c.name}</span>
+                <span
+                  className="mt-1 block h-0.5 w-8 rounded-full sm:hidden"
+                  style={{ background: c.color }}
+                />
+              </div>
               <MinuteInput
                 value={min}
                 onChange={v => onSetAllocation(c.id, v)}
                 step={5}
+                compact
+                className="ml-auto flex-shrink-0"
               />
             </div>
           );
@@ -141,18 +150,26 @@ export function PlanEditor({
               return (
                 <div
                   key={c.id}
-                  className="flex items-center gap-2 bg-ink-900/30 border border-dashed border-ink-700/50 rounded-lg px-3 py-2"
+                  className="flex items-center gap-2 bg-ink-900/30 border border-dashed border-ink-700/50 rounded-lg px-2.5 py-2 sm:px-3"
                 >
                   <span
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    className="hidden h-2.5 w-2.5 rounded-full flex-shrink-0 sm:block"
                     style={{ background: c.color }}
                   />
-                  <span className="text-sm flex-1 min-w-0 truncate text-ink-300">{c.name}</span>
-                  <span className="text-[10px] text-ink-600 flex-shrink-0 mr-1">limite</span>
+                  <div className="flex-1 min-w-0 pr-1 sm:pr-2">
+                    <span className="block truncate text-sm text-ink-300">{c.name}</span>
+                    <span
+                      className="mt-1 block h-0.5 w-8 rounded-full sm:hidden"
+                      style={{ background: c.color }}
+                    />
+                  </div>
+                  <span className="hidden text-[10px] text-ink-600 flex-shrink-0 mr-1 sm:block">limite</span>
                   <MinuteInput
                     value={min}
                     onChange={v => onSetAllocation(c.id, v)}
                     step={5}
+                    compact
+                    className="ml-auto flex-shrink-0"
                   />
                 </div>
               );

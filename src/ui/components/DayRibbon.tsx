@@ -1,16 +1,6 @@
-// =====================================================================
-// DayRibbon — régua horizontal do dia, por macrocaixa.
-//
-// Dois modos:
-//   'awake' — eixo = janela de tempo acordado (wakeAtMin … wakeAtMin+awakeMinutes).
-//             Pode cruzar meia-noite. Filtra sessões dentro dessa janela.
-//   '24h'   — eixo fixo 0h–24h (um dia de calendário inteiro).
-//             Filtra sessões pelo dia local (não UTC), trunca na meia-noite.
-// =====================================================================
-
 import { Category, Macrobox, Session } from '../../domain/types';
 import { MACROBOX_COLOR, MACROBOX_LABEL } from '../../domain/defaults';
-import { formatHM, minutesBetween } from '../../domain/time';
+import { formatHM } from '../../domain/time';
 
 interface Props {
   sessions: Session[];
@@ -21,11 +11,8 @@ interface Props {
   now?: number;
 }
 
-/** Data local no formato YYYY-MM-DD */
-function localISO(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+const DAY_MINUTES = 24 * 60;
+const DAY_MS = DAY_MINUTES * 60_000;
 
 export function DayRibbon({
   sessions, categories, awakeMinutes,
@@ -33,74 +20,60 @@ export function DayRibbon({
   mode = 'awake',
   now = Date.now(),
 }: Props) {
-  const today = localISO(now);
   const catById = new Map(categories.map(c => [c.id, c]));
+  const nowDate = new Date(now);
+  const todayStartMs = new Date(
+    nowDate.getFullYear(),
+    nowDate.getMonth(),
+    nowDate.getDate(),
+  ).getTime();
+  const nowMinSinceMidnight = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const awakeWrapsMidnight = wakeAtMin + awakeMinutes > DAY_MINUTES;
 
-  // ── Definição do eixo X ──
-  const axisStartMin: number = mode === '24h' ? 0 : wakeAtMin;
-  const axisEndMin: number   = mode === '24h' ? 24 * 60 : wakeAtMin + awakeMinutes;
-  const axisDurationMin      = axisEndMin - axisStartMin;
+  const axisStartMs = mode === '24h'
+    ? todayStartMs
+    : (() => {
+        const baseStartMs = todayStartMs + wakeAtMin * 60_000;
+        const wrapTailMin = wakeAtMin + awakeMinutes - DAY_MINUTES;
+        if (awakeWrapsMidnight && nowMinSinceMidnight < wrapTailMin) {
+          return baseStartMs - DAY_MS;
+        }
+        return baseStartMs;
+      })();
+  const axisDurationMin = mode === '24h' ? DAY_MINUTES : awakeMinutes;
+  const axisEndMs = axisStartMs + axisDurationMin * 60_000;
 
-  // Minutos desde meia-noite para o instante "now"
-  const nowMinSinceMidnight = (new Date(now).getHours() * 60 + new Date(now).getMinutes());
-
-  /** Converte ms epoch → minutos dentro do eixo (pode ficar fora de [0, axisDuration]) */
-  function toAxisMin(ms: number): number {
-    const d = new Date(ms);
-    // minutos desde meia-noite do dia local em que ms cai
-    const msLocalMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    const minLocal = (ms - msLocalMidnight) / 60_000;
-    // Se mode='awake' e a sessão é do dia SEGUINTE (cruza meia-noite), soma 24h
-    if (mode === 'awake' && localISO(ms) > today) {
-      return minLocal + 24 * 60 - axisStartMin;
-    }
-    return minLocal - axisStartMin;
-  }
-
-  // ── Filtragem de sessões ──
-  function sessionIsVisible(s: Session): boolean {
-    const endMs = s.endedAt ?? now;
-    if (mode === '24h') {
-      // Qualquer sessão cujo início OU fim é no dia local de hoje
-      return localISO(s.startedAt) === today || localISO(endMs) === today;
-    }
-    // Modo awake: sessões cujo início OU fim cai dentro da janela [axisStart, axisEnd)
-    const startMin = toAxisMin(s.startedAt);
-    const endMin   = toAxisMin(endMs);
-    return endMin > 0 && startMin < axisDurationMin;
-  }
-
-  const todays = sessions
-    .filter(sessionIsVisible)
-    .sort((a, b) => a.startedAt - b.startedAt);
-
-  // ── Runs por macrocaixa ──
   type Run = { macro: Macrobox; startPct: number; widthPct: number };
   const runs: Run[] = [];
   const macrosUsed = new Set<Macrobox>();
   let trackedMin = 0;
 
-  for (const s of todays) {
-    const cat = catById.get(s.categoryId);
+  const visibleSessions = sessions
+    .map((session) => {
+      const endMs = session.endedAt ?? now;
+      const visibleStartMs = Math.max(session.startedAt, axisStartMs);
+      const visibleEndMs = Math.min(endMs, axisEndMs);
+      if (visibleEndMs <= visibleStartMs) return null;
+      return { session, visibleStartMs, visibleEndMs };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => a.visibleStartMs - b.visibleStartMs);
+
+  for (const { session, visibleStartMs, visibleEndMs } of visibleSessions) {
+    const cat = catById.get(session.categoryId);
     if (!cat) continue;
 
-    const rawStart = toAxisMin(s.startedAt);
-    const rawEnd   = toAxisMin(s.endedAt ?? now);
+    const startMin = (visibleStartMs - axisStartMs) / 60_000;
+    const durMin = (visibleEndMs - visibleStartMs) / 60_000;
+    if (durMin <= 0) continue;
 
-    // Clamp ao eixo
-    const clampedStart = Math.max(0, rawStart);
-    const clampedEnd   = Math.min(axisDurationMin, rawEnd);
-    const dur = clampedEnd - clampedStart;
-    if (dur <= 0) continue;
-
-    trackedMin += dur;
+    trackedMin += durMin;
     macrosUsed.add(cat.macrobox);
 
-    const startPct = (clampedStart / axisDurationMin) * 100;
-    const widthPct = (dur / axisDurationMin) * 100;
-
-    // Funde runs adjacentes da mesma macrocaixa
+    const startPct = (startMin / axisDurationMin) * 100;
+    const widthPct = (durMin / axisDurationMin) * 100;
     const last = runs[runs.length - 1];
+
     if (last && last.macro === cat.macrobox && Math.abs((last.startPct + last.widthPct) - startPct) < 0.5) {
       last.widthPct += widthPct;
     } else {
@@ -108,40 +81,34 @@ export function DayRibbon({
     }
   }
 
-  // ── "Agora" em % do eixo ──
-  const nowAxisMin = mode === '24h' ? nowMinSinceMidnight : nowMinSinceMidnight - axisStartMin;
-  const nowPct = Math.max(0, Math.min(100, (nowAxisMin / axisDurationMin) * 100));
-  const hasNowMarker = nowPct > 0 && nowPct < 100;
+  const nowMinOnAxis = (now - axisStartMs) / 60_000;
+  const hasNowMarker = nowMinOnAxis > 0 && nowMinOnAxis < axisDurationMin;
+  const nowPct = hasNowMarker ? (nowMinOnAxis / axisDurationMin) * 100 : 0;
 
-  // ── Ticks de hora ──
   const ticks: { label: string; pct: number }[] = [];
-  const step = axisDurationMin <= 8 * 60 ? 1 : axisDurationMin <= 14 * 60 ? 2 : 3;
-  const startHour = Math.ceil(axisStartMin / 60);
-  const endHour   = Math.floor(axisEndMin / 60);
-  for (let h = startHour; h <= endHour; h += step) {
-    const minOnAxis = h * 60 - axisStartMin;
+  const minTickGapPct = mode === '24h' ? 10 : axisDurationMin <= 8 * 60 ? 14 : 12;
+  let lastTickPct = -Infinity;
+  const firstWholeHourMin = Math.ceil((axisStartMs / 60_000) / 60) * 60;
+  const lastWholeHourMin = Math.floor((axisEndMs / 60_000) / 60) * 60;
+
+  for (let absoluteHourMin = firstWholeHourMin; absoluteHourMin <= lastWholeHourMin; absoluteHourMin += 60) {
+    const minOnAxis = absoluteHourMin - axisStartMs / 60_000;
     const pct = (minOnAxis / axisDurationMin) * 100;
-    // Margem maior nas bordas para não colidir com labels extremas
-    if (pct > 4 && pct < 91) {
-      ticks.push({ label: `${String(h % 24).padStart(2, '0')}h`, pct });
-    }
+    if (pct <= 6 || pct >= 94 || pct - lastTickPct < minTickGapPct) continue;
+    ticks.push({ label: `${String((Math.floor(absoluteHourMin / 60) % 24 + 24) % 24).padStart(2, '0')}h`, pct });
+    lastTickPct = pct;
   }
 
-  const startLabel = fmtHourFromMin(axisStartMin);
-  const endLabel   = mode === '24h' ? '24h' : fmtHourFromMin(axisEndMin);
-
-  // Overflow além das horas acordado (só relevante no modo awake)
-  const overPct = mode === 'awake'
-    ? Math.max(0, ((trackedMin - awakeMinutes) / axisDurationMin) * 100)
-    : 0;
+  const startLabel = fmtHourFromDate(axisStartMs);
+  const endLabel = mode === '24h' ? '24h' : fmtHourFromDate(axisEndMs);
 
   return (
     <section aria-label="Trajeto do dia">
-      <div className="flex items-baseline justify-between mb-2">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
         <div className="text-[10px] uppercase tracking-[0.3em] text-ink-400">
           trajeto do dia
         </div>
-        <div className="text-[11px] text-ink-400 tabular-nums">
+        <div className="text-right text-[11px] text-ink-400 tabular-nums">
           <span className="text-ink-100">{formatHM(trackedMin)}</span>
           <span className="text-ink-500"> rastreado</span>
           {mode === 'awake' && (
@@ -154,13 +121,11 @@ export function DayRibbon({
         </div>
       </div>
 
-      {/* régua */}
-      <div className="relative w-full h-8 rounded-md overflow-hidden bg-ink-800/60 border border-ink-700/80">
-        {/* blocos rastreados — posicionados absolutamente no eixo */}
+      <div className="relative h-8 w-full overflow-hidden rounded-md border border-ink-700/80 bg-ink-800/60">
         {runs.map((r, i) => (
           <div
             key={i}
-            className="absolute top-0 bottom-0"
+            className="absolute inset-y-0"
             style={{
               left: `${r.startPct}%`,
               width: `${r.widthPct}%`,
@@ -171,10 +136,9 @@ export function DayRibbon({
           />
         ))}
 
-        {/* futuro — hachura do nowPct até o fim */}
         {hasNowMarker && (
           <div
-            className="absolute top-0 bottom-0"
+            className="absolute inset-y-0"
             style={{
               left: `${nowPct}%`,
               right: 0,
@@ -184,44 +148,29 @@ export function DayRibbon({
           />
         )}
 
-        {/* linha AGORA */}
         {hasNowMarker && (
           <>
             <div
-              className="absolute top-0 bottom-0 w-[2px] bg-gold"
+              className="absolute inset-y-0 w-[2px] bg-gold"
               style={{ left: `calc(${nowPct}% - 1px)` }}
             />
             <div
-              className="absolute -top-[3px] w-2 h-2 rounded-full bg-gold ring-2 ring-ink-900"
+              className="absolute -top-[3px] h-2 w-2 rounded-full bg-gold ring-2 ring-ink-900"
               style={{ left: `calc(${nowPct}% - 4px)` }}
             />
           </>
         )}
-
-        {/* overflow do plano (modo awake) */}
-        {overPct > 0 && (
-          <div
-            className="absolute top-0 bottom-0 border-l border-overflow/60"
-            style={{
-              left: `${Math.min(100, (awakeMinutes / axisDurationMin) * 100)}%`,
-              right: 0,
-              background: 'repeating-linear-gradient(90deg, transparent 0 3px, #c97e5e22 3px 4px)',
-            }}
-          />
-        )}
       </div>
 
-      {/* eixo de horas */}
-      <div className="relative h-4 mt-1">
+      <div className="relative mt-1 h-4">
         {ticks.map((t, i) => (
-          <div key={i} className="absolute top-0" style={{ left: `calc(${t.pct}% - 8px)` }}>
-            <div className="h-1.5 w-px bg-ink-700 mx-auto" />
-            <div className="text-[9px] tabular-nums text-ink-500 mt-px text-center w-4">
+          <div key={i} className="absolute top-0 -translate-x-1/2" style={{ left: `${t.pct}%` }}>
+            <div className="mx-auto h-1.5 w-px bg-ink-700" />
+            <div className="mt-px whitespace-nowrap text-center text-[9px] tabular-nums text-ink-500">
               {t.label}
             </div>
           </div>
         ))}
-        {/* label AGORA */}
         {hasNowMarker && (
           <div
             className="absolute top-1 text-[9px] uppercase tracking-widest text-gold"
@@ -233,7 +182,6 @@ export function DayRibbon({
             agora
           </div>
         )}
-        {/* bordas */}
         <div className="absolute left-0 top-1 text-[9px] uppercase tracking-widest text-ink-500">
           {startLabel}
         </div>
@@ -242,12 +190,11 @@ export function DayRibbon({
         </div>
       </div>
 
-      {/* legenda */}
       {macrosUsed.size > 0 && (
         <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
           {[...macrosUsed].map(m => (
             <span key={m} className="inline-flex items-center gap-1.5 text-[10px] text-ink-400">
-              <span className="inline-block w-2 h-2 rounded-sm" style={{ background: MACROBOX_COLOR[m] }} />
+              <span className="inline-block h-2 w-2 rounded-sm" style={{ background: MACROBOX_COLOR[m] }} />
               {MACROBOX_LABEL[m].toLowerCase()}
             </span>
           ))}
@@ -255,7 +202,7 @@ export function DayRibbon({
       )}
 
       {trackedMin === 0 && (
-        <div className="mt-2 text-[11px] text-ink-500 italic">
+        <div className="mt-2 text-[11px] italic text-ink-500">
           Nada rastreado ainda hoje. Comece uma atividade pra ver o trajeto.
         </div>
       )}
@@ -263,9 +210,10 @@ export function DayRibbon({
   );
 }
 
-function fmtHourFromMin(min: number): string {
-  const h = Math.floor(min / 60) % 24;
-  const m = min % 60;
+function fmtHourFromDate(ms: number): string {
+  const d = new Date(ms);
+  const h = d.getHours();
+  const m = d.getMinutes();
   return m === 0
     ? `${String(h).padStart(2, '0')}h`
     : `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}`;

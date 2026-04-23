@@ -1,23 +1,14 @@
-// =====================================================================
-// MinuteInput — input de tempo em minutos sem o bug do zero inicial.
-//
-// - type="text" evita os quirks de type="number" (leading zero, spinner)
-// - Mostra o valor atual como número de minutos
-// - Em foco: digitação livre, parse no blur/enter
-// - Abaixo do campo: equivalente em Xh Ym
-// - Botões − e + com step configurável
-// =====================================================================
-
 import { useState } from 'react';
 import { formatHM } from '../../domain/time';
 
 interface Props {
-  value: number;           // minutos
+  value: number;
   onChange: (minutes: number) => void;
   min?: number;
   max?: number;
   step?: number;
   className?: string;
+  compact?: boolean;
 }
 
 export function MinuteInput({
@@ -27,6 +18,7 @@ export function MinuteInput({
   max = Infinity,
   step = 5,
   className = '',
+  compact = false,
 }: Props) {
   const [draft, setDraft] = useState<string | null>(null);
 
@@ -52,7 +44,7 @@ export function MinuteInput({
         type="button"
         tabIndex={-1}
         onClick={() => adjust(-step)}
-        className="w-6 h-6 rounded bg-ink-700 hover:bg-ink-600 text-ink-300 text-sm leading-none flex items-center justify-center flex-shrink-0"
+        className={`${compact ? 'h-5 w-5 text-xs sm:h-6 sm:w-6 sm:text-sm' : 'h-6 w-6 text-sm'} flex-shrink-0 rounded bg-ink-700 text-ink-300 leading-none hover:bg-ink-600 flex items-center justify-center`}
       >
         −
       </button>
@@ -63,30 +55,29 @@ export function MinuteInput({
         value={displayed}
         onFocus={e => {
           setDraft(String(value));
-          // seleciona tudo ao focar para facilitar sobrescrever
           e.target.select();
         }}
         onChange={e => setDraft(e.target.value)}
         onBlur={e => commit(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Enter')      { e.currentTarget.blur(); }
-          if (e.key === 'ArrowUp')    { adjust(step); e.preventDefault(); }
-          if (e.key === 'ArrowDown')  { adjust(-step); e.preventDefault(); }
+          if (e.key === 'Enter') { e.currentTarget.blur(); }
+          if (e.key === 'ArrowUp') { adjust(step); e.preventDefault(); }
+          if (e.key === 'ArrowDown') { adjust(-step); e.preventDefault(); }
         }}
-        className="w-14 bg-ink-700 border border-ink-600 rounded px-1 py-0.5 text-sm tabular-nums text-right focus:outline-none focus:border-ink-400 transition"
+        className={`${compact ? 'w-11 text-[13px] sm:w-14 sm:text-sm' : 'w-14 text-sm'} rounded border border-ink-600 bg-ink-700 px-1 py-0.5 tabular-nums text-right transition focus:border-ink-400 focus:outline-none`}
       />
 
       <button
         type="button"
         tabIndex={-1}
         onClick={() => adjust(step)}
-        className="w-6 h-6 rounded bg-ink-700 hover:bg-ink-600 text-ink-300 text-sm leading-none flex items-center justify-center flex-shrink-0"
+        className={`${compact ? 'h-5 w-5 text-xs sm:h-6 sm:w-6 sm:text-sm' : 'h-6 w-6 text-sm'} flex-shrink-0 rounded bg-ink-700 text-ink-300 leading-none hover:bg-ink-600 flex items-center justify-center`}
       >
         +
       </button>
 
       {value > 0 && (
-        <span className="text-[11px] text-ink-400 tabular-nums ml-1 w-10 text-right flex-shrink-0">
+        <span className={`${compact ? 'ml-0.5 w-8 text-[10px] sm:ml-1 sm:w-10 sm:text-[11px]' : 'ml-1 w-10 text-[11px]'} flex-shrink-0 text-right tabular-nums text-ink-400`}>
           {formatHM(value)}
         </span>
       )}
