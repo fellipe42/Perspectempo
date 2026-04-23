@@ -3,6 +3,7 @@ import { AppState, Category, DailyPlan, DefaultPlan, Session, UserProfile, count
 import { repository } from '../data/repository';
 import { todayISO } from '../domain/time';
 import { DEFAULT_ALLOCATION_MIN, DEFAULT_AWAKE_MINUTES } from '../domain/defaults';
+import { normalizeAppState, pickPersistedAppState } from '../data/appState';
 
 interface StoreActions {
   // ações sobre sessões
@@ -34,6 +35,7 @@ interface StoreActions {
   setProfile: (partial: Partial<UserProfile>) => void;
 
   // util
+  replaceAllData: (state: AppState) => void;
   resetAll: () => void;
   exportJSON: () => string;
   importJSON: (json: string) => { ok: boolean; error?: string };
@@ -48,15 +50,7 @@ export const useStore = create<Store>((set, get) => {
   function persist(partial: Partial<AppState>) {
     set(state => {
       const next = { ...state, ...partial };
-      repository.save({
-        categories: next.categories,
-        habits: next.habits,
-        plans: next.plans,
-        sessions: next.sessions,
-        activeSessionId: next.activeSessionId,
-        profile: next.profile,
-        defaultPlan: next.defaultPlan,
-      });
+      repository.save(pickPersistedAppState(next));
       return next;
     });
   }
@@ -367,6 +361,13 @@ export const useStore = create<Store>((set, get) => {
       persist({ profile: { ...base, ...partial } });
     },
 
+    replaceAllData: (incoming) => {
+      const next = normalizeAppState(incoming);
+      repository.save(next);
+      set(state => ({ ...state, ...next }));
+      get().ensureTodayPlan();
+    },
+
     resetAll: () => {
       repository.reset();
       const fresh = repository.load();
@@ -406,7 +407,7 @@ export const useStore = create<Store>((set, get) => {
         if (parsed.plans && (typeof parsed.plans !== 'object' || Array.isArray(parsed.plans))) {
           return { ok: false, error: 'Campo "plans" inválido.' };
         }
-        persist({
+        const merged = normalizeAppState({
           categories: parsed.categories ?? get().categories,
           habits: parsed.habits ?? get().habits,
           plans: parsed.plans ?? get().plans,
@@ -415,6 +416,7 @@ export const useStore = create<Store>((set, get) => {
           profile: parsed.profile ?? get().profile,
           defaultPlan: parsed.defaultPlan ?? get().defaultPlan,
         });
+        get().replaceAllData(merged);
         return { ok: true };
       } catch (e) {
         return { ok: false, error: 'JSON malformado.' };

@@ -4,6 +4,8 @@ import { PerspectivePage } from './ui/pages/PerspectivePage';
 import { useStore } from './state/useStore';
 import { OnboardingModal } from './ui/components/OnboardingModal';
 import { InstallCoach } from './ui/components/InstallCoach';
+import { AuthSyncPanel } from './ui/components/AuthSyncPanel';
+import { useAuthSync } from './sync/useAuthSync';
 
 type Tab = 'today' | 'perspective';
 
@@ -16,6 +18,7 @@ export default function App() {
   const profile    = useStore(s => s.profile);
   const setProfile = useStore(s => s.setProfile);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const authSync = useAuthSync();
 
   const showOnboarding = !profile?.onboardingDone;
 
@@ -84,6 +87,24 @@ export default function App() {
 
           {/* Direita: ações desktop visíveis / mobile no 3-pontos */}
           <div className="flex items-center gap-1.5 text-xs">
+            <div className="relative">
+              <AuthSyncPanel
+                configured={authSync.configured}
+                userEmail={authSync.user?.email}
+                authBusy={authSync.authBusy}
+                authMessage={authSync.authMessage}
+                syncStatus={authSync.syncStatus}
+                statusText={authSync.statusText}
+                migrationPrompt={authSync.migrationPrompt}
+                onGoogleLogin={authSync.signInWithGoogle}
+                onEmailLogin={authSync.signInWithPassword}
+                onEmailSignup={authSync.signUpWithPassword}
+                onLogout={authSync.logout}
+                onSyncNow={authSync.syncNow}
+                onUseLocalAsSource={authSync.useLocalAsSource}
+                onUseCloudAsSource={authSync.useCloudAsSource}
+              />
+            </div>
             <input
               ref={fileRef}
               type="file"
@@ -142,7 +163,9 @@ export default function App() {
       </main>
 
       <footer className="text-center text-[11px] sm:text-xs text-ink-500 py-4 px-4">
-        Dados salvos localmente no seu navegador. Nada sai do seu dispositivo.
+        {authSync.user
+          ? `Conta conectada: ${authSync.user.email ?? 'usuário'} · ${authSync.statusText}. O app continua local-first e sincroniza quando possível.`
+          : 'Dados salvos localmente no seu navegador. Sem login, o app continua funcionando offline como visitante.'}
       </footer>
 
       {showOnboarding && (
