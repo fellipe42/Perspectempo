@@ -151,9 +151,9 @@ export function FocusMode({
   const pomodoroPhaseLabel = pomodoro.phase === 'work' ? 'foco' : 'pausa';
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink-950 flex flex-col items-center justify-center">
-      {/* Chrome topo */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-4 text-[11px] uppercase tracking-[0.3em] text-ink-400">
+    <div className="fixed inset-0 z-50 bg-ink-950 flex flex-col">
+      {/* ── Chrome topo ── */}
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 text-[11px] uppercase tracking-[0.3em] text-ink-400">
         <span>modo foco</span>
         <span className="flex items-center gap-3">
           {supported ? (
@@ -174,24 +174,27 @@ export function FocusMode({
         </span>
       </div>
 
-      {/* Conteúdo central */}
-      <div className="flex flex-col items-center">
+      {/* ── Conteúdo central ── ocupa todo o espaço disponível */}
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-4 py-2">
         <div
-          className="text-xs uppercase tracking-[0.4em] mb-8"
+          className="text-xs uppercase tracking-[0.4em] mb-6"
           style={{ color: category.color }}
         >
           {gerundForCategory(category)}
         </div>
 
-        {/* Quando pomodoro está ativo, mostra o countdown em vez do elapsed */}
         {pomodoroRunning ? (
+          /* ── Modo Pomodoro ── */
           <div className="flex flex-col items-center">
             <div className="text-[10px] uppercase tracking-[0.3em] text-ink-400 mb-4">
               sessão {pomodoro.currentSession}/{pomodoro.config.sessions} · {pomodoroPhaseLabel}
             </div>
             <div
               className="font-serif tabular-nums leading-none"
-              style={{ fontSize: 'clamp(3.5rem, 12vw, 7rem)', color: pomodoro.phase === 'work' ? category.color : '#7aa884' }}
+              style={{
+                fontSize: 'clamp(3.5rem, 12vw, 7rem)',
+                color: pomodoro.phase === 'work' ? category.color : '#7aa884',
+              }}
             >
               {formatHMS(pomodoro.secondsLeft)}
             </div>
@@ -200,51 +203,44 @@ export function FocusMode({
                 ? `${pomodoro.config.workMin} min de foco`
                 : `${pomodoro.config.breakMin} min de pausa`}
             </div>
-
-            {/* Sessão dots */}
             <div className="flex gap-2 mt-5">
               {Array.from({ length: pomodoro.config.sessions }).map((_, i) => (
                 <span
                   key={i}
                   className="w-2 h-2 rounded-full transition-colors"
                   style={{
-                    background: i < pomodoro.currentSession - 1
-                      ? category.color
-                      : i === pomodoro.currentSession - 1
-                        ? '#ece8df'
-                        : '#2a2f3a',
+                    background:
+                      i < pomodoro.currentSession - 1
+                        ? category.color
+                        : i === pomodoro.currentSession - 1
+                          ? '#ece8df'
+                          : '#2a2f3a',
                   }}
                 />
               ))}
             </div>
-
-            <button
-              onClick={stopPomodoro}
-              className="mt-8 px-4 py-1.5 rounded-lg bg-ink-800 hover:bg-ink-700 text-ink-400 text-[11px] border border-ink-700 transition"
-            >
-              cancelar pomodoro
-            </button>
           </div>
         ) : (
+          /* ── Modo normal: anel ── */
           <FocusRing
             color={category.color}
             spentMinutes={spentMinutes}
             goalMinutes={goalMinutes}
             awakeMinutes={awakeMinutes}
             sessionSeconds={sessionSeconds}
-            size={Math.min(560, typeof window !== 'undefined' ? window.innerHeight * 0.6 : 480)}
+            size={Math.min(480, typeof window !== 'undefined' ? window.innerHeight * 0.52 : 400)}
             pulsing
           >
             <div className="text-center">
               <div
                 className="font-serif tabular-nums leading-none"
-                style={{ fontSize: 'clamp(3rem, 8vw, 6.5rem)', color: '#ece8df' }}
+                style={{ fontSize: 'clamp(2.5rem, 7vw, 5.5rem)', color: '#ece8df' }}
               >
                 {formatHMS(sessionSeconds)}
               </div>
               <div
-                className="mt-4 font-medium"
-                style={{ color: category.color, fontSize: 'clamp(1rem, 1.5vw, 1.5rem)' }}
+                className="mt-3 font-medium"
+                style={{ color: category.color, fontSize: 'clamp(0.9rem, 1.4vw, 1.3rem)' }}
               >
                 {category.name}
               </div>
@@ -252,8 +248,9 @@ export function FocusMode({
           </FocusRing>
         )}
 
+        {/* Estatística de progresso diário */}
         {!pomodoroRunning && (
-          <div className="mt-10 text-sm text-ink-300 tabular-nums">
+          <div className="mt-6 text-sm text-ink-300 tabular-nums">
             {goalMinutes > 0 ? (
               <>
                 hoje <span className="text-ink-100">{formatHM(spentMinutes)}</span>
@@ -267,15 +264,41 @@ export function FocusMode({
           </div>
         )}
 
+        {/* Botão encerrar — sempre visível no centro, separado da zona do pomodoro */}
         <button
           onClick={() => { onStop(); onClose(); }}
-          className="mt-6 px-5 py-2 rounded-xl bg-ink-800 hover:bg-ink-700 text-ink-200 text-sm border border-ink-700 transition"
+          className="mt-8 px-6 py-2.5 rounded-xl bg-ink-800 hover:bg-ink-700 text-ink-200 text-sm border border-ink-700 transition"
         >
           Encerrar atividade
         </button>
+
+        {pomodoroRunning && (
+          <button
+            onClick={stopPomodoro}
+            className="mt-3 text-[11px] text-ink-600 hover:text-ink-400 transition"
+          >
+            cancelar pomodoro
+          </button>
+        )}
       </div>
 
-      {/* Pomodoro setup overlay */}
+      {/* ── Rodapé fixo — pomodoro + texto contemplativo ── */}
+      <div className="flex-shrink-0 flex flex-col items-center gap-2.5 py-5 border-t border-ink-800/60">
+        {!pomodoroRunning && (
+          <button
+            onClick={() => { setDraftConfig(pomodoro.config); setShowPomodoroSetup(true); }}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-ink-700/60 text-[11px] uppercase tracking-[0.2em] text-ink-400 hover:text-ink-200 hover:border-ink-600 transition"
+          >
+            <span>⏱</span>
+            <span>Pomodoro</span>
+          </button>
+        )}
+        <div className="text-[11px] uppercase tracking-[0.3em] text-ink-600">
+          este é o tempo que você está vivendo
+        </div>
+      </div>
+
+      {/* ── Overlay de configuração do pomodoro ── */}
       {showPomodoroSetup && (
         <div
           className="absolute inset-0 bg-ink-950/80 flex items-center justify-center z-10"
@@ -286,7 +309,6 @@ export function FocusMode({
             onClick={e => e.stopPropagation()}
           >
             <div className="text-sm font-medium text-ink-200 mb-4">Configurar Pomodoro</div>
-
             <div className="space-y-3 mb-5">
               <PomodoroField
                 label="Sessões"
@@ -307,8 +329,6 @@ export function FocusMode({
                 onChange={v => setDraftConfig(c => ({ ...c, breakMin: v }))}
               />
             </div>
-
-            {/* Som */}
             <div className="flex items-center justify-between mb-5">
               <span className="text-[12px] text-ink-400">Alerta sonoro</span>
               <button
@@ -322,7 +342,6 @@ export function FocusMode({
                 }`} />
               </button>
             </div>
-
             <div className="flex gap-2">
               <button
                 onClick={() => setShowPomodoroSetup(false)}
@@ -341,21 +360,6 @@ export function FocusMode({
           </div>
         </div>
       )}
-
-      {/* Rodapé: contemplativo + botão pomodoro */}
-      <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-3">
-        {!pomodoroRunning && (
-          <button
-            onClick={() => { setDraftConfig(pomodoro.config); setShowPomodoroSetup(true); }}
-            className="text-[11px] uppercase tracking-[0.25em] text-ink-600 hover:text-ink-400 transition"
-          >
-            ⏱ pomodoro
-          </button>
-        )}
-        <div className="text-[11px] uppercase tracking-[0.3em] text-ink-600">
-          este é o tempo que você está vivendo
-        </div>
-      </div>
     </div>
   );
 }

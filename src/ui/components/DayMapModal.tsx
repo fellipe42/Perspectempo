@@ -69,28 +69,73 @@ export function DayMapModal({ open, onClose, categories, balances, thefts, score
             })}
         </div>
 
-        {thefts.length > 0 && (
-          <>
-            <h3 className="text-xs uppercase tracking-wide text-ink-400 mb-2">Tempo roubado</h3>
-            <ul className="text-sm space-y-1">
-              {thefts.map((t, i) => {
-                const from = catById.get(t.fromCategoryId);
-                const to = t.toCategoryId ? catById.get(t.toCategoryId) : null;
-                return (
-                  <li key={i}>
-                    <span style={{ color: from?.color }}>{from?.name}</span>
-                    <span className="text-ink-400"> roubou </span>
-                    <span className="tabular-nums">{formatHM(t.minutes)}</span>
-                    <span className="text-ink-400"> de </span>
-                    <span style={{ color: to?.color ?? '#9aa1b2' }}>
-                      {to ? to.name : 'nenhuma (excesso perdido)'}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
+        {thefts.length > 0 && (() => {
+          const realThefts  = thefts.filter(t => t.toCategoryId !== null);
+          const slackUsed   = thefts.filter(t => t.toCategoryId === null && t.fromSlack === true);
+          const trueOverrun = thefts.filter(t => t.toCategoryId === null && t.fromSlack !== true);
+          return (
+            <>
+              {realThefts.length > 0 && (
+                <>
+                  <h3 className="text-xs uppercase tracking-wide text-ink-400 mb-2">Tempo roubado</h3>
+                  <ul className="text-sm space-y-1 mb-4">
+                    {realThefts.map((t, i) => {
+                      const from = catById.get(t.fromCategoryId);
+                      const to   = catById.get(t.toCategoryId!);
+                      return (
+                        <li key={i}>
+                          <span style={{ color: from?.color }}>{from?.name}</span>
+                          <span className="text-ink-400"> roubou </span>
+                          <span className="tabular-nums">{formatHM(t.minutes)}</span>
+                          <span className="text-ink-400"> de </span>
+                          <span style={{ color: to?.color }}>{to?.name}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+
+              {slackUsed.length > 0 && (
+                <>
+                  <h3 className="text-xs uppercase tracking-wide text-ink-400 mb-2">Tempo livre usado</h3>
+                  <ul className="text-sm space-y-1 mb-4">
+                    {slackUsed.map((t, i) => {
+                      const from = catById.get(t.fromCategoryId);
+                      return (
+                        <li key={i} className="text-ink-400">
+                          <span style={{ color: from?.color }}>{from?.name}</span>
+                          <span> usou </span>
+                          <span className="tabular-nums text-ink-300">{formatHM(t.minutes)}</span>
+                          <span> do tempo livre do plano</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+
+              {trueOverrun.length > 0 && (
+                <>
+                  <h3 className="text-xs uppercase tracking-wide text-ink-400 mb-2">Excesso real</h3>
+                  <ul className="text-sm space-y-1 mb-4">
+                    {trueOverrun.map((t, i) => {
+                      const from = catById.get(t.fromCategoryId);
+                      return (
+                        <li key={i} className="text-overflow">
+                          <span style={{ color: from?.color }}>{from?.name}</span>
+                          <span className="text-ink-400"> excedeu </span>
+                          <span className="tabular-nums">{formatHM(t.minutes)}</span>
+                          <span className="text-ink-400"> além de todo o plano</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </>
+          );
+        })()}
       </div>
     </div>
   );

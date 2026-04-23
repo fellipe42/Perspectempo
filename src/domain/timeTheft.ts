@@ -1,6 +1,6 @@
 import {
   Category, CategoryBalance, DailyPlan, TheftReport,
-  canDonate, canReceive, isCap,
+  canDonate, canReceive, isCap, countsTowardAllocated,
 } from './types';
 
 /**
@@ -61,8 +61,17 @@ export function computeBalances(
 
   const thefts: TheftReport[] = [];
 
-  // Ladrões elegíveis: têm overrun E não são caps. Caps com overrun são
-  // tratados como vazamento puro mais abaixo (sem registrar theft).
+  // Tempo livre do plano (slack) = horas acordado − total alocado em metas reais.
+  // Esse pool é absorvido ANTES de qualquer roubo entre categorias.
+  // Raciocínio: se há tempo não alocado, o overrun apenas preencheu esse espaço vazio;
+  // só o que excede o slack é um roubo genuíno.
+  const totalAllocated = Object.values(balances).reduce((sum, b) => {
+    const c = catById.get(b.categoryId);
+    return c && countsTowardAllocated(c) ? sum + b.plannedMinutes : sum;
+  }, 0);
+  let slackPool = Math.max(0, plan.awakeMinutes - totalAllocated);
+
+  // Ladrões elegíveis: têm overrun E não são caps.
   const thieves = Object.values(balances)
     .filter(b => {
       if (b.overrunMinutes <= 0) return false;
@@ -75,8 +84,22 @@ export function computeBalances(
   for (const thief of thieves) {
     let remainingDebt = thief.overrunMinutes;
 
-    // Vítimas elegíveis: têm sobra real, podem doar (regras de canDonate),
-    // não são o próprio ladrão.
+    // 1) Absorver do slack primeiro — não é roubo, é tempo livre sendo usado.
+    if (slackPool > 0 && remainingDebt > 0) {
+      const fromSlack = Math.min(remainingDebt, slackPool);
+      slackPool -= fromSlack;
+      remainingDebt -= fromSlack;
+      thefts.push({
+        fromCategoryId: thief.categoryId,
+        toCategoryId: null,
+        minutes: fromSlack,
+        fromSlack: true,
+      });
+    }
+
+    if (remainingDebt <= 0) continue;
+
+    // 2) O que resta após o slack: precisa roubar de categorias.
     const victims = Object.values(balances)
       .filter(b => {
         if (b.categoryId === thief.categoryId) return false;
@@ -89,8 +112,7 @@ export function computeBalances(
       .sort((a, b) => {
         const ca = catById.get(a.categoryId)!;
         const cb = catById.get(b.categoryId)!;
-        if (ca.priority !== cb.priority) return cb.priority - ca.priority; // menor prioridade primeiro
-        // flexible cede antes de target
+        if (ca.priority !== cb.priority) return cb.priority - ca.priority; // menor prioridade cede primeiro
         const aFlex = ca.budgetType === 'flexible' ? 1 : 0;
         const bFlex = cb.budgetType === 'flexible' ? 1 : 0;
         if (aFlex !== bFlex) return bFlex - aFlex;
@@ -101,7 +123,6 @@ export function computeBalances(
 
     for (const victim of victims) {
       if (remainingDebt <= 0) break;
-      // Bloqueio extra: receptora também precisa poder receber.
       const vc = catById.get(victim.categoryId)!;
       if (!canReceive(vc)) continue;
       const realRemaining = victim.plannedMinutes - victim.spentMinutes - victim.stolenFromMinutes;
@@ -116,12 +137,13 @@ export function computeBalances(
       });
     }
 
-    // Sobrou? Excesso "perdido" — todas vítimas exauridas/protegidas.
+    // 3) Sobrou depois de slack + vítimas? Excesso real além de todas as horas planejadas.
     if (remainingDebt > 0) {
       thefts.push({
         fromCategoryId: thief.categoryId,
         toCategoryId: null,
         minutes: remainingDebt,
+        fromSlack: false,
       });
     }
   }

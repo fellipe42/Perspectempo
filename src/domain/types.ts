@@ -107,8 +107,14 @@ export interface DayScore {
 
 export interface TheftReport {
   fromCategoryId: string;   // categoria que excedeu
-  toCategoryId: string | null; // null = excesso "sem destino" (todas vítimas exauridas/protegidas)
+  toCategoryId: string | null; // null = sem vítima (ver fromSlack)
   minutes: number;
+  /**
+   * true  → o excesso foi absorvido pelo tempo livre (slack) do plano.
+   *         Não é roubo real — apenas consumiu horas não alocadas.
+   * false → excesso real: ultrapassou tudo (plano + slack). Genuíno "sem destino".
+   */
+  fromSlack?: boolean;
 }
 
 export interface CategoryBalance {

@@ -47,8 +47,11 @@ export function PerspectivePage() {
     return (
       <div className="space-y-16 pb-12">
         <SparseIntro daysWithData={daysWithData} />
-        <LifeWeeks />
+        {daysWithData > 0 && (
+          <WeekNarrator daysData={daysData} categories={categories} weekGrand={weekTotals.grand} />
+        )}
         <WeekColumns daysData={daysData} categories={categories} today={today} />
+        <LifeWeeks />
       </div>
     );
   }
@@ -214,8 +217,9 @@ function WeekColumns({
 }) {
   const catById = new Map(categories.map(c => [c.id, c]));
 
-  // escala: altura máxima representa 16h; o resto é proporcional
-  const MAX_MIN = 16 * 60;
+  // escala: altura máxima = maior dia registrado na semana, mínimo 16h, teto 24h
+  const maxDayMin = Math.max(...daysData.map(d => d.score.totalMinutes), 0);
+  const MAX_MIN = Math.min(24 * 60, Math.max(16 * 60, maxDayMin));
   const COL_HEIGHT = 240; // px
 
   return (
